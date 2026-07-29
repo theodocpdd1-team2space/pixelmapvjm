@@ -15,10 +15,11 @@ export function NumericField({
   min?: number;
   step?: number;
   onPreview: (value: number) => void;
-  onCommit: () => void;
+  onCommit: (value?: number) => void;
 }) {
   const [draft, setDraft] = useState(String(value));
   const editingRef = useRef(false);
+  const cancelRef = useRef(false);
 
   useEffect(() => {
     if (!editingRef.current) {
@@ -27,16 +28,24 @@ export function NumericField({
   }, [value]);
 
   function commitDraft() {
+    if (cancelRef.current) {
+      cancelRef.current = false;
+      editingRef.current = false;
+      setDraft(String(value));
+      return;
+    }
+
     const parsed = Number(draft);
     if (Number.isFinite(parsed)) {
       const next = min === undefined ? parsed : Math.max(min, parsed);
       setDraft(String(next));
       onPreview(next);
+      onCommit(next);
     } else {
       setDraft(String(value));
+      onCommit();
     }
     editingRef.current = false;
-    onCommit();
   }
 
   return (
@@ -51,6 +60,7 @@ export function NumericField({
         type="text"
         onFocus={(event) => {
           editingRef.current = true;
+          cancelRef.current = false;
           event.currentTarget.select();
         }}
         onChange={(event) => {
@@ -66,8 +76,8 @@ export function NumericField({
           if (event.key === "Enter") {
             event.currentTarget.blur();
           } else if (event.key === "Escape") {
+            cancelRef.current = true;
             setDraft(String(value));
-            editingRef.current = false;
             event.currentTarget.blur();
           }
         }}

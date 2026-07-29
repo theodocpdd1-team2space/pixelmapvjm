@@ -42,6 +42,7 @@ export function snapRectToCanvas(
   }
 
   const threshold = 6 / Math.max(0.05, options.zoom ?? 1);
+  const canvasEdgeThreshold = Math.max(threshold, Math.min(12, canvas.gridSize / 4));
   const shouldGridSnap = options.gridSnap ?? true;
   const shouldObjectSnap = options.objectSnap ?? true;
   let x = shouldGridSnap ? snapValue(rect.x, canvas) : roundCoord(rect.x);
@@ -49,12 +50,12 @@ export function snapRectToCanvas(
   let width = Math.max(1, shouldGridSnap ? snapValue(rect.width, canvas) : roundCoord(rect.width));
   let height = Math.max(1, shouldGridSnap ? snapValue(rect.height, canvas) : roundCoord(rect.height));
 
-  x = snapNear(x, 0, threshold);
-  y = snapNear(y, 0, threshold);
-  x = snapNear(x, canvas.width - width, threshold);
-  y = snapNear(y, canvas.height - height, threshold);
-  x = snapNear(x, canvas.width / 2 - width / 2, threshold);
-  y = snapNear(y, canvas.height / 2 - height / 2, threshold);
+  x = snapNear(x, 0, canvasEdgeThreshold);
+  y = snapNear(y, 0, canvasEdgeThreshold);
+  x = snapNear(x, canvas.width - width, canvasEdgeThreshold);
+  y = snapNear(y, canvas.height - height, canvasEdgeThreshold);
+  x = snapNear(x, canvas.width / 2 - width / 2, canvasEdgeThreshold);
+  y = snapNear(y, canvas.height / 2 - height / 2, canvasEdgeThreshold);
 
   if (shouldObjectSnap) {
     const otherScreens = options.otherScreens ?? [];

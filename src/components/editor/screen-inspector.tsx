@@ -1,10 +1,12 @@
 "use client";
 
-import { Copy, Lock, Trash2, Unlock } from "lucide-react";
+import { Copy, Lock, Sparkles, Trash2, Unlock } from "lucide-react";
 import { NumericField } from "@/components/editor/numeric-field";
 import { Button } from "@/components/ui/button";
 import { cabinetPresets, cabinetSettingsFromPreset } from "@/features/editor/cabinet-presets";
 import { animationColorTemplates } from "@/features/editor/color-templates";
+import { visualTemplates } from "@/features/editor/visual-templates";
+import { snapRectToCanvas } from "@/features/editor/geometry";
 import { defaultScreenPattern } from "@/features/editor/types";
 import type { AnimationType, CabinetPresetId, PatternMode, ScreenPatternSettings, StaticPatternType } from "@/features/editor/types";
 import { useEditorStore } from "@/stores/editor-store";
@@ -20,6 +22,7 @@ export function ScreenInspector() {
   const deleteSelected = useEditorStore((state) => state.deleteSelected);
   const toggleLock = useEditorStore((state) => state.toggleLock);
   const addCabinetArray = useEditorStore((state) => state.addCabinetArray);
+  const applyScreenAnimationToAll = useEditorStore((state) => state.applyScreenAnimationToAll);
   const screen = screens.find((item) => item.id === selectedIds[0]);
 
   if (selectedIds.length === 0 || !screen) {
@@ -31,11 +34,18 @@ export function ScreenInspector() {
   }
 
   if (selectedIds.length > 1) {
+    const sourceScreen = screens.find((item) => item.id === selectedIds[0]);
     return (
       <div className="space-y-3">
         <div className="border border-pf-border bg-black/25 p-3 font-mono text-xs uppercase text-pf-muted">
           {selectedIds.length} screens selected
         </div>
+        {sourceScreen && sourceScreen.type !== "logo" ? (
+          <Button type="button" className="w-full" onClick={() => applyScreenAnimationToAll(sourceScreen.id)}>
+            <Sparkles size={14} />
+            APPLY FIRST ANIMATION TO ALL
+          </Button>
+        ) : null}
         <div className="grid grid-cols-2 gap-2">
           <Button type="button" onClick={duplicateSelected}>
             <Copy size={14} />
@@ -50,7 +60,30 @@ export function ScreenInspector() {
     );
   }
 
+  const selectedScreen = screen;
   const pattern = { ...defaultScreenPattern, ...(screen.pattern as Partial<ScreenPatternSettings>) };
+
+  function commitGeometry(key: "x" | "y" | "width" | "height", value?: number) {
+    if (value === undefined) {
+      commitTransform();
+      return;
+    }
+
+    const current = useEditorStore.getState();
+    const latest = current.screens.find((item) => item.id === selectedScreen.id);
+    if (!latest || !current.canvas.snappingEnabled) {
+      commitTransform();
+      return;
+    }
+
+    const next = snapRectToCanvas(
+      { x: latest.x, y: latest.y, width: latest.width, height: latest.height, [key]: value },
+      current.canvas,
+      { zoom: current.zoom, otherScreens: current.screens.filter((item) => item.id !== selectedScreen.id && item.visible) }
+    );
+    updateScreen(selectedScreen.id, next);
+    commitTransform();
+  }
 
   return (
     <div className="min-w-0 space-y-4">
@@ -71,6 +104,12 @@ export function ScreenInspector() {
           }}
         />
       </label>
+      {screen.type !== "logo" ? (
+        <Button type="button" className="h-10 w-full" onClick={() => applyScreenAnimationToAll(screen.id)}>
+          <Sparkles size={14} />
+          APPLY ANIMATION TO ALL
+        </Button>
+      ) : null}
       <div className="grid grid-cols-2 gap-3">
         <NumericField
           label="X"
@@ -79,7 +118,7 @@ export function ScreenInspector() {
             beginTransform();
             updateScreen(screen.id, { x: value });
           }}
-          onCommit={commitTransform}
+          onCommit={(value) => commitGeometry("x", value)}
         />
         <NumericField
           label="Y"
@@ -88,7 +127,7 @@ export function ScreenInspector() {
             beginTransform();
             updateScreen(screen.id, { y: value });
           }}
-          onCommit={commitTransform}
+          onCommit={(value) => commitGeometry("y", value)}
         />
         <NumericField
           label="W"
@@ -98,7 +137,7 @@ export function ScreenInspector() {
             beginTransform();
             updateScreen(screen.id, { width: Math.max(1, value) });
           }}
-          onCommit={commitTransform}
+          onCommit={(value) => commitGeometry("width", value)}
         />
         <NumericField
           label="H"
@@ -108,7 +147,7 @@ export function ScreenInspector() {
             beginTransform();
             updateScreen(screen.id, { height: Math.max(1, value) });
           }}
-          onCommit={commitTransform}
+          onCommit={(value) => commitGeometry("height", value)}
         />
         <NumericField
           label="Rotation"
@@ -140,9 +179,11 @@ export function ScreenInspector() {
             className="technical-input h-10 min-w-0 truncate pr-7 text-[0.68rem]"
             value={screen.cabinet.presetId}
             onChange={(event) => {
+              const nextCabinet = cabinetSettingsFromPreset(event.target.value as CabinetPresetId);
               beginTransform();
               updateScreen(screen.id, {
-                cabinet: cabinetSettingsFromPreset(event.target.value as CabinetPresetId)
+                cabinet: nextCabinet,
+                pattern: { ...pattern, gridSize: nextCabinet.pixelWidth }
               });
               commitTransform();
             }}
@@ -161,9 +202,11 @@ export function ScreenInspector() {
             value={screen.cabinet.pixelWidth}
             min={1}
             onPreview={(value) => {
+              const pixelWidth = Math.max(1, Math.round(value));
               beginTransform();
               updateScreen(screen.id, {
-                cabinet: { ...screen.cabinet, presetId: "custom", pixelWidth: Math.max(1, Math.round(value)) }
+                cabinet: { ...screen.cabinet, presetId: "custom", pixelWidth },
+                pattern: pattern.gridSize === screen.cabinet.pixelWidth ? { ...pattern, gridSize: pixelWidth } : pattern
               });
             }}
             onCommit={commitTransform}
@@ -300,6 +343,27 @@ export function ScreenInspector() {
         <div className="space-y-3 border border-pf-border bg-black/20 p-3">
           <p className="font-mono text-xs uppercase text-pf-red">Test Pattern</p>
           <label className="block space-y-2">
+            <span className="technical-label">Visual Template</span>
+            <select
+              className="technical-input h-9 min-w-0 truncate pr-7 text-xs"
+              defaultValue=""
+              onChange={(event) => {
+                const template = visualTemplates.find((item) => item.id === event.target.value);
+                event.currentTarget.value = "";
+                if (!template) return;
+                updateScreen(screen.id, {
+                  fillColor: template.fillColor,
+                  borderColor: template.borderColor,
+                  pattern: { ...pattern, ...template.pattern },
+                  animation: { ...screen.animation, ...template.animation }
+                });
+              }}
+            >
+              <option value="">Apply visual template...</option>
+              {visualTemplates.map((template) => <option key={template.id} value={template.id}>{template.label}</option>)}
+            </select>
+          </label>
+          <label className="block space-y-2">
             <span className="technical-label">Pattern Type</span>
             <select
               className="technical-input h-9 text-xs"
@@ -338,24 +402,27 @@ export function ScreenInspector() {
             </select>
           </label>
           <div className="grid grid-cols-2 gap-3">
-            <label className="block space-y-2">
-              <span className="technical-label">Pattern Red</span>
-              <input
-                className="h-9 w-full border border-pf-border bg-black"
-                type="color"
-                value={pattern.primaryColor}
-                onChange={(event) => updateScreen(screen.id, { pattern: { ...pattern, primaryColor: event.target.value } })}
-              />
-            </label>
-            <label className="block space-y-2">
-              <span className="technical-label">Pattern Green</span>
-              <input
-                className="h-9 w-full border border-pf-border bg-black"
-                type="color"
-                value={pattern.secondaryColor}
-                onChange={(event) => updateScreen(screen.id, { pattern: { ...pattern, secondaryColor: event.target.value } })}
-              />
-            </label>
+            {([
+              ["BG", "backgroundColor"],
+              ["Primary", "primaryColor"],
+              ["Secondary", "secondaryColor"],
+              ["Grid", "gridColor"],
+              ["Cabinet", "cabinetGridColor"],
+              ["Module", "moduleGridColor"],
+              ["Dots", "pixelDotColor"],
+              ["Label BG", "labelBackgroundColor"],
+              ["Label Text", "labelTextColor"]
+            ] as const).map(([label, key]) => (
+              <label key={key} className="block space-y-2">
+                <span className="technical-label">{label}</span>
+                <input
+                  className="h-9 w-full border border-pf-border bg-black"
+                  type="color"
+                  value={pattern[key]}
+                  onChange={(event) => updateScreen(screen.id, { pattern: { ...pattern, [key]: event.target.value } })}
+                />
+              </label>
+            ))}
           </div>
           <div className="grid grid-cols-2 gap-3">
             <NumericField
@@ -509,6 +576,7 @@ export function ScreenInspector() {
             <option value="vertical-wipe">Vertical Wipe</option>
             <option value="scanner">Scanner</option>
             <option value="radial-wave">Radial Wave</option>
+            <option value="fade-gradient-circle">Fade Gradient Circle</option>
             <option value="pulse">Pulse</option>
             <option value="blink">Blink</option>
           </select>

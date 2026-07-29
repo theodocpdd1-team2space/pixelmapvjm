@@ -5,9 +5,11 @@ import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { LayersList } from "@/components/editor/layers-list";
 import { ExportPanel } from "@/components/editor/export-panel";
 import { LogoUploader } from "@/components/editor/logo-uploader";
+import { NumericField } from "@/components/editor/numeric-field";
 import { ScreenInspector } from "@/components/editor/screen-inspector";
 import { Button } from "@/components/ui/button";
 import { SectionHeading } from "@/components/ui/section-heading";
+import { visualTemplates } from "@/features/editor/visual-templates";
 import { useEditorStore } from "@/stores/editor-store";
 
 export function EditorSidebar({
@@ -24,6 +26,10 @@ export function EditorSidebar({
   const canvas = useEditorStore((state) => state.canvas);
   const screens = useEditorStore((state) => state.screens);
   const addRectangle = useEditorStore((state) => state.addRectangle);
+  const applyVisualTemplateToPage = useEditorStore((state) => state.applyVisualTemplateToPage);
+  const beginTransform = useEditorStore((state) => state.beginTransform);
+  const commitTransform = useEditorStore((state) => state.commitTransform);
+  const updateCanvas = useEditorStore((state) => state.updateCanvas);
   const undo = useEditorStore((state) => state.undo);
   const redo = useEditorStore((state) => state.redo);
   const historyPast = useEditorStore((state) => state.historyPast);
@@ -100,22 +106,139 @@ export function EditorSidebar({
 
         <section>
           <SectionHeading code="04" title="Canvas" />
-          <div className="mt-4 grid grid-cols-2 gap-3 font-mono text-xs uppercase text-pf-muted">
-            <div className="border border-pf-border bg-black/25 p-3">
-              <span>Width</span>
-              <p className="mt-1 text-pf-text">{canvas.width}</p>
+          <div className="mt-4 space-y-3">
+            <label className="block space-y-2">
+              <span className="technical-label">Page Name</span>
+              <input
+                className="technical-input h-9 text-xs"
+                value={canvas.name}
+                onFocus={beginTransform}
+                onChange={(event) => updateCanvas({ name: event.target.value })}
+                onBlur={commitTransform}
+              />
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <NumericField
+                label="Width"
+                value={canvas.width}
+                min={1}
+                onPreview={(value) => {
+                  beginTransform();
+                  updateCanvas({ width: value });
+                }}
+                onCommit={commitTransform}
+              />
+              <NumericField
+                label="Height"
+                value={canvas.height}
+                min={1}
+                onPreview={(value) => {
+                  beginTransform();
+                  updateCanvas({ height: value });
+                }}
+                onCommit={commitTransform}
+              />
+              <NumericField
+                label="FPS"
+                value={canvas.fps}
+                min={1}
+                onPreview={(value) => {
+                  beginTransform();
+                  updateCanvas({ fps: value });
+                }}
+                onCommit={commitTransform}
+              />
+              <NumericField
+                label="Duration"
+                value={canvas.duration}
+                min={1}
+                step={0.5}
+                onPreview={(value) => {
+                  beginTransform();
+                  updateCanvas({ duration: value });
+                }}
+                onCommit={commitTransform}
+              />
+              <NumericField
+                label="Grid"
+                value={canvas.gridSize}
+                min={1}
+                onPreview={(value) => {
+                  beginTransform();
+                  updateCanvas({ gridSize: value });
+                }}
+                onCommit={commitTransform}
+              />
+              <label className="block space-y-1">
+                <span className="technical-label">Background</span>
+                <input
+                  className="h-9 w-full border border-pf-border bg-black"
+                  type="color"
+                  value={canvas.backgroundColor}
+                  onFocus={beginTransform}
+                  onChange={(event) => updateCanvas({ backgroundColor: event.target.value })}
+                  onBlur={commitTransform}
+                />
+              </label>
             </div>
-            <div className="border border-pf-border bg-black/25 p-3">
-              <span>Height</span>
-              <p className="mt-1 text-pf-text">{canvas.height}</p>
+            <div className="grid grid-cols-2 gap-2 font-mono text-[0.68rem] uppercase text-pf-muted">
+              <label className="flex items-center gap-2 border border-pf-border bg-black/30 p-2">
+                <input
+                  type="checkbox"
+                  checked={canvas.backgroundTransparent}
+                  onChange={(event) => {
+                    beginTransform();
+                    updateCanvas({ backgroundTransparent: event.target.checked });
+                    commitTransform();
+                  }}
+                />
+                Transparent
+              </label>
+              <label className="flex items-center gap-2 border border-pf-border bg-black/30 p-2">
+                <input
+                  type="checkbox"
+                  checked={canvas.snappingEnabled}
+                  onChange={(event) => {
+                    beginTransform();
+                    updateCanvas({ snappingEnabled: event.target.checked });
+                    commitTransform();
+                  }}
+                />
+                Snap
+              </label>
+              <label className="flex items-center gap-2 border border-pf-border bg-black/30 p-2">
+                <input
+                  type="checkbox"
+                  checked={canvas.gridVisible}
+                  onChange={(event) => {
+                    beginTransform();
+                    updateCanvas({ gridVisible: event.target.checked });
+                    commitTransform();
+                  }}
+                />
+                Grid
+              </label>
             </div>
-            <div className="border border-pf-border bg-black/25 p-3">
-              <span>FPS</span>
-              <p className="mt-1 text-pf-text">{canvas.fps}</p>
-            </div>
-            <div className="border border-pf-border bg-black/25 p-3">
-              <span>Grid</span>
-              <p className="mt-1 text-pf-text">{canvas.gridSize}px</p>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                ["FHD", 1920, 1080],
+                ["UHD", 3840, 2160],
+                ["4K DCI", 4096, 2160],
+                ["ULTRA WIDE", 7680, 1080]
+              ].map(([label, width, height]) => (
+                <button
+                  key={String(label)}
+                  type="button"
+                  className="border border-pf-border bg-black/30 px-2 py-2 font-mono text-[0.65rem] uppercase text-pf-muted hover:border-pf-red hover:text-pf-text"
+                  onClick={() => {
+                    beginTransform();
+                    updateCanvas({ width: Number(width), height: Number(height) });
+                    commitTransform();
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
           </div>
         </section>
@@ -131,6 +254,13 @@ export function EditorSidebar({
           <div className="mt-3">
             <LogoUploader />
           </div>
+          <button
+            type="button"
+            className="mt-3 w-full border border-pf-border bg-black/30 px-3 py-2 font-mono text-xs uppercase text-pf-muted hover:border-pf-red hover:text-pf-text"
+            onClick={() => applyVisualTemplateToPage(visualTemplates[0])}
+          >
+            Clean Output Colors
+          </button>
           <div className="mt-4">
             <ScreenInspector />
           </div>

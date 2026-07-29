@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Circle, Group, Image as KonvaImage, Layer, Line, Rect, Stage, Text, Transformer } from "react-konva";
 import type Konva from "konva";
 import type { KonvaEventObject } from "konva/lib/Node";
+import { adaptiveLabelSize, colorWithAlpha, patternRenderConstants } from "@/features/editor/color";
 import { snapRectToCanvas } from "@/features/editor/geometry";
 import { defaultScreenPattern } from "@/features/editor/types";
 import type { EditorScreen, ScreenPatternSettings } from "@/features/editor/types";
@@ -143,9 +144,9 @@ function StaticPatternOverlay({ screen }: { screen: EditorScreen }) {
           const checkerTone =
             pattern.type === "checkerboard"
               ? (Math.floor((x + globalOffsetX) / grid) + Math.floor((y + globalOffsetY) / grid)) % 4 === 0
-                ? "#F4F4F4"
-                : "#111111"
-              : "rgba(50,213,131,0.12)";
+                ? pattern.primaryColor
+                : pattern.secondaryColor
+              : colorWithAlpha(pattern.secondaryColor, patternRenderConstants.calibrationCheckerAlpha);
           elements.push(
             <Rect
               key={`checker-${x}-${y}`}
@@ -154,7 +155,6 @@ function StaticPatternOverlay({ screen }: { screen: EditorScreen }) {
               width={grid}
               height={grid}
               fill={checkerTone}
-              opacity={pattern.type === "checkerboard" ? 0.9 : 1}
               listening={false}
             />
           );
@@ -166,12 +166,12 @@ function StaticPatternOverlay({ screen }: { screen: EditorScreen }) {
   if (pattern.type === "grid" || calibration) {
     for (let x = startX; x < screen.width; x += grid) {
       elements.push(
-        <Line key={`pattern-v-${x}`} points={[x, 0, x, screen.height]} stroke={calibration ? "rgba(244,244,244,0.24)" : pattern.primaryColor} strokeWidth={pattern.lineWidth} listening={false} />
+        <Line key={`pattern-v-${x}`} points={[x, 0, x, screen.height]} stroke={calibration ? colorWithAlpha(pattern.gridColor, patternRenderConstants.calibrationGridAlpha) : pattern.gridColor} strokeWidth={pattern.lineWidth} listening={false} />
       );
     }
     for (let y = startY; y < screen.height; y += grid) {
       elements.push(
-        <Line key={`pattern-h-${y}`} points={[0, y, screen.width, y]} stroke={calibration ? "rgba(244,244,244,0.24)" : pattern.primaryColor} strokeWidth={pattern.lineWidth} listening={false} />
+        <Line key={`pattern-h-${y}`} points={[0, y, screen.width, y]} stroke={calibration ? colorWithAlpha(pattern.gridColor, patternRenderConstants.calibrationGridAlpha) : pattern.gridColor} strokeWidth={pattern.lineWidth} listening={false} />
       );
     }
   }
@@ -221,8 +221,8 @@ function ScreenPixelOverlay({
   const pattern = { ...defaultScreenPattern, ...(screen.pattern as Partial<ScreenPatternSettings>) };
 
   if (cabinet.showPixelDots) {
-    const dotStepX = Math.max(8, Math.ceil(screen.width / 80));
-    const dotStepY = Math.max(8, Math.ceil(screen.height / 50));
+    const dotStepX = Math.max(8, Math.ceil(screen.width / patternRenderConstants.pixelDotStepXDivisor));
+    const dotStepY = Math.max(8, Math.ceil(screen.height / patternRenderConstants.pixelDotStepYDivisor));
 
     for (let y = dotStepY / 2; y < screen.height; y += dotStepY) {
       for (let x = dotStepX / 2; x < screen.width; x += dotStepX) {
@@ -233,7 +233,7 @@ function ScreenPixelOverlay({
             y={y}
             width={Math.max(1.4, dotStepX * 0.12)}
             height={Math.max(1.4, dotStepY * 0.12)}
-            fill="rgba(244,244,244,0.2)"
+            fill={colorWithAlpha(pattern.pixelDotColor, patternRenderConstants.pixelDotAlpha)}
             listening={false}
           />
         );
@@ -244,12 +244,12 @@ function ScreenPixelOverlay({
   if (cabinet.showModuleGrid) {
     for (let x = cabinet.modulePixelWidth; x < screen.width; x += cabinet.modulePixelWidth) {
       elements.push(
-        <Line key={`module-v-${x}`} points={[x, 0, x, screen.height]} stroke="rgba(50,213,131,0.24)" strokeWidth={1} listening={false} />
+        <Line key={`module-v-${x}`} points={[x, 0, x, screen.height]} stroke={colorWithAlpha(pattern.moduleGridColor, patternRenderConstants.moduleGridAlpha)} strokeWidth={1} listening={false} />
       );
     }
     for (let y = cabinet.modulePixelHeight; y < screen.height; y += cabinet.modulePixelHeight) {
       elements.push(
-        <Line key={`module-h-${y}`} points={[0, y, screen.width, y]} stroke="rgba(50,213,131,0.24)" strokeWidth={1} listening={false} />
+        <Line key={`module-h-${y}`} points={[0, y, screen.width, y]} stroke={colorWithAlpha(pattern.moduleGridColor, patternRenderConstants.moduleGridAlpha)} strokeWidth={1} listening={false} />
       );
     }
   }
@@ -269,6 +269,7 @@ function ScreenPixelOverlay({
         x={screen.x}
         y={screen.y}
         rotation={screen.rotation}
+        opacity={screen.opacity}
         clipX={0}
         clipY={0}
         clipWidth={screen.width}
@@ -391,6 +392,35 @@ function ScreenPixelOverlay({
         />
       );
     }
+  } else if (animation.type === "fade-gradient-circle") {
+    const maxRadius = Math.hypot(screen.width, screen.height) * 0.52;
+    const radius = maxRadius * (0.72 + progress * 0.16);
+    const breathe = 0.58 + Math.sin(rawProgress * Math.PI * 2) * 0.08;
+
+    elements.push(
+      <Circle
+        key="anim-fade-gradient-circle"
+        x={screen.width / 2}
+        y={screen.height / 2}
+        radius={radius}
+        fillRadialGradientStartPoint={{ x: 0, y: 0 }}
+        fillRadialGradientStartRadius={0}
+        fillRadialGradientEndPoint={{ x: 0, y: 0 }}
+        fillRadialGradientEndRadius={radius}
+        fillRadialGradientColorStops={[
+          0,
+          colorWithAlpha(animation.secondaryColor, 0.92),
+          0.34,
+          colorWithAlpha(animation.secondaryColor, 0.7),
+          0.62,
+          colorWithAlpha(animation.primaryColor, 0.28),
+          1,
+          "rgba(0,0,0,0)"
+        ]}
+        opacity={breathe}
+        listening={false}
+      />
+    );
   } else if (animation.type === "pulse") {
     elements.push(
       <Rect key="anim-pulse" width={screen.width} height={screen.height} fill={animation.primaryColor} opacity={pulse} listening={false} />
@@ -406,6 +436,7 @@ function ScreenPixelOverlay({
       x={screen.x}
       y={screen.y}
       rotation={screen.rotation}
+      opacity={screen.opacity}
       clipX={0}
       clipY={0}
       clipWidth={screen.width}
@@ -453,8 +484,7 @@ function ScreenNode({
         width={screen.width}
         height={screen.height}
         rotation={screen.rotation}
-        opacity={screen.opacity}
-        fill={screen.type === "logo" ? "rgba(0,0,0,0)" : screen.fillColor}
+        fill="rgba(0,0,0,0)"
         stroke={selected ? "#FF3030" : screen.borderColor}
         strokeWidth={selected ? Math.max(screen.borderWidth, 4) : screen.borderWidth}
         dash={screen.locked ? [12, 8] : undefined}
@@ -516,6 +546,7 @@ function ScreenNode({
         x={screen.x}
         y={screen.y}
         rotation={screen.rotation}
+        opacity={screen.opacity}
         clipX={0}
         clipY={0}
         clipWidth={screen.width}
@@ -523,27 +554,16 @@ function ScreenNode({
         listening={false}
       >
         {screen.type === "logo" && logoImage ? (
-          <KonvaImage image={logoImage} width={screen.width} height={screen.height} opacity={screen.opacity} listening={false} />
+          <KonvaImage image={logoImage} width={screen.width} height={screen.height} listening={false} />
         ) : (
           <StaticPatternOverlay screen={screen} />
         )}
         {screen.type !== "logo" && patternForScreen(screen).showLogo && logoImage ? (
           <KonvaImage image={logoImage} x={screen.width * 0.36} y={screen.height * 0.28} width={screen.width * 0.28} height={screen.height * 0.44} opacity={0.96} listening={false} />
         ) : null}
+        {screen.type !== "logo" ? <ScreenLabel screen={screen} /> : null}
       </Group>
       <ScreenPixelOverlay screen={screen} animationTime={animationTime} previewPlaying={previewPlaying} />
-      {screen.type !== "logo" ? (
-        <Text
-          x={screen.x + 12}
-          y={screen.y + 12}
-          rotation={screen.rotation}
-          text={labelForScreen(screen)}
-          fill={selected ? "#FF3030" : "#F4F4F4"}
-          fontSize={patternForScreen(screen).labelSize}
-          fontFamily="JetBrains Mono"
-          listening={false}
-        />
-      ) : null}
     </Group>
   );
 }
@@ -552,14 +572,57 @@ function patternForScreen(screen: EditorScreen) {
   return { ...defaultScreenPattern, ...(screen.pattern as Partial<ScreenPatternSettings>) };
 }
 
-function labelForScreen(screen: EditorScreen) {
+function labelLinesForScreen(screen: EditorScreen) {
   const pattern = patternForScreen(screen);
-  const lines = [
+  return [
     pattern.showScreenName ? screen.name : "",
-    pattern.showSize || pattern.showResolution ? `${Math.round(screen.width)} x ${Math.round(screen.height)}` : "",
+    pattern.showSize || pattern.showResolution ? `SIZE: ${Math.round(screen.width)} x ${Math.round(screen.height)}` : "",
     pattern.showPosition || pattern.showCoordinates ? `X ${Math.round(screen.x)} Y ${Math.round(screen.y)}` : ""
   ].filter(Boolean);
-  return lines.join("\n");
+}
+
+function ScreenLabel({ screen }: { screen: EditorScreen }) {
+  const pattern = patternForScreen(screen);
+  const lines = labelLinesForScreen(screen);
+
+  if (lines.length === 0) {
+    return null;
+  }
+
+  const fontSize = adaptiveLabelSize(pattern.labelSize, screen.width, screen.height);
+  const padding = Math.max(10, fontSize * 0.48);
+  const lineHeight = fontSize * 1.22;
+  const longest = Math.max(...lines.map((line) => line.length));
+  const width = longest * fontSize * 0.64 + padding * 2;
+  const height = lines.length * lineHeight + padding * 1.4;
+  const x = (screen.width - width) / 2;
+  const y = (screen.height - height) / 2;
+
+  return (
+    <Group x={x} y={y} listening={false}>
+      <Rect
+        width={width}
+        height={height}
+        fill={colorWithAlpha(pattern.labelBackgroundColor, pattern.labelBackgroundOpacity)}
+        stroke={pattern.primaryColor}
+        strokeWidth={2}
+        listening={false}
+      />
+      {lines.map((line, index) => (
+        <Text
+          key={`${line}-${index}`}
+          x={padding}
+          y={padding * 0.7 + index * lineHeight}
+          text={line}
+          fill={pattern.labelTextColor}
+          fontSize={fontSize}
+          fontStyle="700"
+          fontFamily="JetBrains Mono"
+          listening={false}
+        />
+      ))}
+    </Group>
+  );
 }
 
 export function EditorCanvas({ onViewportChange }: { onViewportChange: (size: { width: number; height: number }) => void }) {

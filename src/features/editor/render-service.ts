@@ -5,6 +5,7 @@ import type {
   EditorScreen,
   ScreenPatternSettings
 } from "@/features/editor/types";
+import { adaptiveLabelSize, colorWithAlpha, patternRenderConstants } from "@/features/editor/color";
 import { defaultScreenPattern } from "@/features/editor/types";
 
 type RenderOptions = {
@@ -58,9 +59,10 @@ function drawLine(ctx: CanvasRenderingContext2D, points: number[]) {
 }
 
 function drawCabinetGrid(ctx: CanvasRenderingContext2D, screen: EditorScreen, pattern: ScreenPatternSettings) {
+  const baseAlpha = ctx.globalAlpha;
   ctx.lineWidth = Math.max(1, screen.cabinet.cabinetLineThickness ?? pattern.cabinetGridThickness);
   ctx.strokeStyle = pattern.cabinetGridColor;
-  ctx.globalAlpha = screen.cabinet.cabinetLineOpacity ?? 0.72;
+  ctx.globalAlpha = baseAlpha * (screen.cabinet.cabinetLineOpacity ?? 0.72);
 
   if (screen.cabinet.showCabinetGrid) {
     for (let x = screen.cabinet.pixelWidth; x < screen.width; x += screen.cabinet.pixelWidth) {
@@ -72,8 +74,9 @@ function drawCabinetGrid(ctx: CanvasRenderingContext2D, screen: EditorScreen, pa
   }
 
   if (screen.cabinet.showModuleGrid) {
+    ctx.globalAlpha = baseAlpha;
     ctx.lineWidth = 1;
-    ctx.strokeStyle = "rgba(50,213,131,0.42)";
+    ctx.strokeStyle = colorWithAlpha(pattern.moduleGridColor, patternRenderConstants.moduleGridAlpha);
     for (let x = screen.cabinet.modulePixelWidth; x < screen.width; x += screen.cabinet.modulePixelWidth) {
       drawLine(ctx, [x, 0, x, screen.height]);
     }
@@ -81,7 +84,7 @@ function drawCabinetGrid(ctx: CanvasRenderingContext2D, screen: EditorScreen, pa
       drawLine(ctx, [0, y, screen.width, y]);
     }
   }
-  ctx.globalAlpha = 1;
+  ctx.globalAlpha = baseAlpha;
 }
 
 function drawPattern(ctx: CanvasRenderingContext2D, screen: EditorScreen, canvas: EditorCanvasSettings, time: number) {
@@ -115,9 +118,9 @@ function drawPattern(ctx: CanvasRenderingContext2D, screen: EditorScreen, canvas
           ctx.fillStyle =
             pattern.type === "checkerboard"
               ? (Math.floor((x + globalOffsetX) / grid) + Math.floor((y + globalOffsetY) / grid)) % 4 === 0
-                ? "#F4F4F4"
-                : "#111111"
-              : "rgba(50,213,131,0.12)";
+                ? pattern.primaryColor
+                : pattern.secondaryColor
+              : colorWithAlpha(pattern.secondaryColor, patternRenderConstants.calibrationCheckerAlpha);
           ctx.fillRect(x, y, grid, grid);
         }
       }
@@ -125,7 +128,7 @@ function drawPattern(ctx: CanvasRenderingContext2D, screen: EditorScreen, canvas
   }
 
   if (pattern.type === "grid" || calibration) {
-    ctx.strokeStyle = pattern.type === "grid" ? pattern.primaryColor : "rgba(244,244,244,0.18)";
+    ctx.strokeStyle = pattern.type === "grid" ? pattern.gridColor : colorWithAlpha(pattern.gridColor, patternRenderConstants.calibrationGridAlpha);
     ctx.lineWidth = pattern.lineWidth;
     for (let x = startX; x < screen.width; x += grid) {
       drawLine(ctx, [x, 0, x, screen.height]);
@@ -172,9 +175,9 @@ function drawPattern(ctx: CanvasRenderingContext2D, screen: EditorScreen, canvas
   }
 
   if (screen.cabinet.showPixelDots) {
-    const stepX = Math.max(8, Math.ceil(screen.width / 90));
-    const stepY = Math.max(8, Math.ceil(screen.height / 58));
-    ctx.fillStyle = "rgba(255,255,255,0.2)";
+    const stepX = Math.max(8, Math.ceil(screen.width / patternRenderConstants.pixelDotStepXDivisor));
+    const stepY = Math.max(8, Math.ceil(screen.height / patternRenderConstants.pixelDotStepYDivisor));
+    ctx.fillStyle = colorWithAlpha(pattern.pixelDotColor, patternRenderConstants.pixelDotAlpha);
     for (let y = stepY / 2; y < screen.height; y += stepY) {
       for (let x = stepX / 2; x < screen.width; x += stepX) {
         ctx.fillRect(x, y, Math.max(1, stepX * 0.12), Math.max(1, stepY * 0.12));
@@ -244,6 +247,28 @@ function drawAnimation(ctx: CanvasRenderingContext2D, screen: EditorScreen, time
       ctx.arc(screen.width / 2, screen.height / 2, radius, 0, Math.PI * 2);
       ctx.stroke();
     }
+  } else if (animation.type === "fade-gradient-circle") {
+    const maxRadius = Math.hypot(screen.width, screen.height) * 0.52;
+    const radius = maxRadius * (0.72 + progress * 0.16);
+    const breathe = 0.58 + Math.sin(rawProgress * Math.PI * 2) * 0.08;
+    const gradient = ctx.createRadialGradient(
+      screen.width / 2,
+      screen.height / 2,
+      0,
+      screen.width / 2,
+      screen.height / 2,
+      radius
+    );
+
+    gradient.addColorStop(0, colorWithAlpha(animation.secondaryColor, 0.92));
+    gradient.addColorStop(0.34, colorWithAlpha(animation.secondaryColor, 0.7));
+    gradient.addColorStop(0.62, colorWithAlpha(animation.primaryColor, 0.28));
+    gradient.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.globalAlpha = breathe;
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(screen.width / 2, screen.height / 2, radius, 0, Math.PI * 2);
+    ctx.fill();
   } else if (animation.type === "pulse") {
     ctx.globalAlpha = 0.25 + Math.sin(time * animation.speed * Math.PI * 2) * 0.2 + 0.2;
     ctx.fillRect(0, 0, screen.width, screen.height);
@@ -257,10 +282,6 @@ function drawAnimation(ctx: CanvasRenderingContext2D, screen: EditorScreen, time
 
 function drawLabel(ctx: CanvasRenderingContext2D, screen: EditorScreen) {
   const pattern = { ...defaultScreenPattern, ...(screen.pattern as Partial<ScreenPatternSettings>) };
-  if (!pattern.showScreenName && !pattern.showResolution && !pattern.showCoordinates) {
-    return;
-  }
-
   const lines = [
     pattern.showScreenName ? screen.name : "",
     pattern.showSize || pattern.showResolution ? `SIZE: ${Math.round(screen.width)} x ${Math.round(screen.height)}` : "",
@@ -271,7 +292,7 @@ function drawLabel(ctx: CanvasRenderingContext2D, screen: EditorScreen) {
     return;
   }
 
-  const fontSize = pattern.labelSize;
+  const fontSize = adaptiveLabelSize(pattern.labelSize, screen.width, screen.height);
   const padding = Math.max(10, fontSize * 0.48);
   const lineHeight = fontSize * 1.22;
   ctx.font = `700 ${fontSize}px "JetBrains Mono", monospace`;
@@ -280,12 +301,12 @@ function drawLabel(ctx: CanvasRenderingContext2D, screen: EditorScreen) {
   const x = (screen.width - width) / 2;
   const y = (screen.height - height) / 2;
 
-  ctx.fillStyle = `rgba(8,8,8,${pattern.labelBackgroundOpacity})`;
+  ctx.fillStyle = colorWithAlpha(pattern.labelBackgroundColor, pattern.labelBackgroundOpacity);
   ctx.strokeStyle = pattern.primaryColor;
   ctx.lineWidth = 2;
   ctx.fillRect(x, y, width, height);
   ctx.strokeRect(x, y, width, height);
-  ctx.fillStyle = "#F4F4F4";
+  ctx.fillStyle = pattern.labelTextColor;
   lines.forEach((line, index) => {
     ctx.fillText(line, x + padding, y + padding + fontSize + index * lineHeight * 0.95);
   });
@@ -306,6 +327,7 @@ export async function renderEditorFrame(
   }
 
   const imageCache = await buildImageCache(screens);
+  ctx.imageSmoothingEnabled = false;
   ctx.clearRect(0, 0, output.width, output.height);
   if (!canvasSettings.backgroundTransparent) {
     ctx.fillStyle = canvasSettings.backgroundColor;
@@ -325,11 +347,17 @@ export async function renderEditorFrame(
       ctx.rect(0, 0, screen.width, screen.height);
       ctx.clip();
 
-      drawPattern(ctx, screen, canvasSettings, options.time ?? 0);
-
       const logoDataUrl = typeof screen.metadata.logoDataUrl === "string" ? screen.metadata.logoDataUrl : "";
       const logo = logoDataUrl ? imageCache.get(logoDataUrl) : null;
-      if (logo) {
+      if (screen.type === "logo") {
+        if (logo) {
+          ctx.drawImage(logo, 0, 0, screen.width, screen.height);
+        }
+      } else {
+        drawPattern(ctx, screen, canvasSettings, options.time ?? 0);
+      }
+
+      if (screen.type !== "logo" && logo) {
         ctx.drawImage(logo, 0, 0, screen.width, screen.height);
       }
 
@@ -365,7 +393,7 @@ export async function exportImage(
   }
   const mimeType = format === "png" ? "image/png" : "image/jpeg";
   const blob = await new Promise<Blob>((resolve, reject) => {
-    output.toBlob((result) => (result ? resolve(result) : reject(new Error("Image export failed."))), mimeType, 0.94);
+    output.toBlob((result) => (result ? resolve(result) : reject(new Error("Image export failed."))), mimeType, 1);
   });
   downloadBlob(blob, `pixelmapvjm-${canvasSettings.width}x${canvasSettings.height}.${format === "png" ? "png" : "jpg"}`);
 }

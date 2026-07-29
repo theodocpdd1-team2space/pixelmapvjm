@@ -55,6 +55,9 @@ export type ScreenPatternSettings = {
   primaryColor: string;
   secondaryColor: string;
   backgroundColor: string;
+  gridColor: string;
+  moduleGridColor: string;
+  pixelDotColor: string;
   lineWidth: number;
   gridSize: number;
   labelSize: number;
@@ -77,6 +80,8 @@ export type ScreenPatternSettings = {
   logoDataUrl?: string;
   cabinetGridColor: string;
   cabinetGridThickness: number;
+  labelBackgroundColor: string;
+  labelTextColor: string;
   labelBackgroundOpacity: number;
 };
 
@@ -84,8 +89,11 @@ export const defaultScreenPattern: ScreenPatternSettings = {
   type: "mapper-calibration",
   mode: "global",
   primaryColor: "#FF3030",
-  secondaryColor: "#32D583",
-  backgroundColor: "#080808",
+  secondaryColor: "#20F26D",
+  backgroundColor: "#020806",
+  gridColor: "#D9FFE7",
+  moduleGridColor: "#43F58A",
+  pixelDotColor: "#E9FFF1",
   lineWidth: 2,
   gridSize: 64,
   labelSize: 28,
@@ -93,7 +101,7 @@ export const defaultScreenPattern: ScreenPatternSettings = {
   showResolution: true,
   showCoordinates: false,
   showCabinetInfo: true
-  ,lineThickness: 2
+  ,lineThickness: 3
   ,edgeThickness: 4
   ,dashedLineLength: 24
   ,dashedLineGap: 18
@@ -107,7 +115,9 @@ export const defaultScreenPattern: ScreenPatternSettings = {
   ,showLogo: false
   ,cabinetGridColor: "#FF3030"
   ,cabinetGridThickness: 2
-  ,labelBackgroundOpacity: 0.88
+  ,labelBackgroundColor: "#050505"
+  ,labelTextColor: "#F4F4F4"
+  ,labelBackgroundOpacity: 0.94
 };
 
 export type CabinetPresetId =
@@ -150,6 +160,7 @@ export type AnimationType =
   | "vertical-wipe"
   | "scanner"
   | "radial-wave"
+  | "fade-gradient-circle"
   | "pulse"
   | "blink";
 

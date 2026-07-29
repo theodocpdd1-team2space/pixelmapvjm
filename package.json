@@ -27,6 +27,7 @@
     "react": "latest",
     "react-dom": "latest",
     "react-konva": "latest",
+    "resend": "^6.18.1",
     "zod": "latest",
     "zustand": "latest"
   },

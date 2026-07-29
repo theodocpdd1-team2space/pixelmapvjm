@@ -10,6 +10,7 @@ import {
 } from "@/features/auth/constants";
 import { requireAdmin } from "@/features/auth/session";
 import { createAccessToken, hashAccessToken } from "@/features/auth/access-utils";
+import { sendInvitationEmail, sendPasswordResetEmail } from "@/features/auth/email";
 
 const emailSchema = z.string().trim().toLowerCase().email();
 const nameSchema = z.string().trim().min(2).max(80);
@@ -81,10 +82,12 @@ export async function createInvitationAction(
   });
 
   const baseUrl = await getBaseUrl();
+  const link = `${baseUrl}/access/setup/${rawToken}`;
+  const emailResult = await sendInvitationEmail({ to: email, name: parsed.data.name || email, link });
   revalidatePath("/admin");
   return {
-    message: "Invitation dibuat. Salin link ini dan kirimkan ke customer.",
-    link: `${baseUrl}/access/setup/${rawToken}`
+    message: emailResult.sent ? "Invitation dibuat dan email berhasil dikirim." : "Invitation dibuat. Salin link ini dan kirimkan ke customer.",
+    link
   };
 }
 
@@ -121,8 +124,10 @@ export async function resendInvitationAction(
   ]);
 
   const baseUrl = await getBaseUrl();
+  const link = `${baseUrl}/access/setup/${rawToken}`;
+  const emailResult = await sendInvitationEmail({ to: invitation.email, name: invitation.name || invitation.email, link });
   revalidatePath("/admin");
-  return { message: "Invitation baru dibuat.", link: `${baseUrl}/access/setup/${rawToken}` };
+  return { message: emailResult.sent ? "Invitation baru dibuat dan email berhasil dikirim." : "Invitation baru dibuat.", link };
 }
 
 export async function activateInvitationAction(
@@ -198,7 +203,9 @@ export async function createPasswordResetAction(
     }
   });
   const baseUrl = await getBaseUrl();
-  return { message: "Link reset password dibuat.", link: `${baseUrl}/access/reset/${rawToken}` };
+  const link = `${baseUrl}/access/reset/${rawToken}`;
+  const emailResult = await sendPasswordResetEmail({ to: user.email, name: user.name, link });
+  return { message: emailResult.sent ? "Link reset dibuat dan email berhasil dikirim." : "Link reset password dibuat.", link };
 }
 
 export async function resetPasswordAction(

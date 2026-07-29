@@ -49,7 +49,7 @@ const defaultCabinetSchemaValue = {
 
 const animationSchema = z.object({
   type: z
-    .enum(["none", "gradient-wipe", "horizontal-wipe", "vertical-wipe", "scanner", "radial-wave", "pulse", "blink"])
+    .enum(["none", "gradient-wipe", "horizontal-wipe", "vertical-wipe", "scanner", "radial-wave", "fade-gradient-circle", "pulse", "blink"])
     .default("gradient-wipe"),
   primaryColor: z.string().default("#32D583"),
   secondaryColor: z.string().default("#FF3030"),
@@ -74,8 +74,11 @@ const patternSchema = z.object({
     .default("mapper-calibration"),
   mode: z.enum(["local", "global"]).default("global"),
   primaryColor: z.string().default("#FF3030"),
-  secondaryColor: z.string().default("#32D583"),
-  backgroundColor: z.string().default("#080808"),
+  secondaryColor: z.string().default("#20F26D"),
+  backgroundColor: z.string().default("#020806"),
+  gridColor: z.string().default("#D9FFE7"),
+  moduleGridColor: z.string().default("#43F58A"),
+  pixelDotColor: z.string().default("#E9FFF1"),
   lineWidth: z.number().positive().default(2),
   gridSize: z.number().int().positive().default(64),
   labelSize: z.number().int().positive().default(28),
@@ -83,7 +86,7 @@ const patternSchema = z.object({
   showResolution: z.boolean().default(true),
   showCoordinates: z.boolean().default(false),
   showCabinetInfo: z.boolean().default(true)
-  ,lineThickness: z.number().positive().default(2)
+  ,lineThickness: z.number().positive().default(3)
   ,edgeThickness: z.number().positive().default(4)
   ,dashedLineLength: z.number().positive().default(24)
   ,dashedLineGap: z.number().positive().default(18)
@@ -98,15 +101,20 @@ const patternSchema = z.object({
   ,logoDataUrl: z.string().optional()
   ,cabinetGridColor: z.string().default("#FF3030")
   ,cabinetGridThickness: z.number().positive().default(2)
-  ,labelBackgroundOpacity: z.number().min(0).max(1).default(0.88)
+  ,labelBackgroundColor: z.string().default("#050505")
+  ,labelTextColor: z.string().default("#F4F4F4")
+  ,labelBackgroundOpacity: z.number().min(0).max(1).default(0.94)
 });
 
 const defaultPatternSchemaValue = {
   type: "mapper-calibration" as const,
   mode: "global" as const,
   primaryColor: "#FF3030",
-  secondaryColor: "#32D583",
-  backgroundColor: "#080808",
+  secondaryColor: "#20F26D",
+  backgroundColor: "#020806",
+  gridColor: "#D9FFE7",
+  moduleGridColor: "#43F58A",
+  pixelDotColor: "#E9FFF1",
   lineWidth: 2,
   gridSize: 64,
   labelSize: 28,
@@ -114,7 +122,7 @@ const defaultPatternSchemaValue = {
   showResolution: true,
   showCoordinates: false,
   showCabinetInfo: true
-  ,lineThickness: 2
+  ,lineThickness: 3
   ,edgeThickness: 4
   ,dashedLineLength: 24
   ,dashedLineGap: 18
@@ -128,7 +136,9 @@ const defaultPatternSchemaValue = {
   ,showLogo: false
   ,cabinetGridColor: "#FF3030"
   ,cabinetGridThickness: 2
-  ,labelBackgroundOpacity: 0.88
+  ,labelBackgroundColor: "#050505"
+  ,labelTextColor: "#F4F4F4"
+  ,labelBackgroundOpacity: 0.94
 };
 
 const defaultAnimationSchemaValue = {

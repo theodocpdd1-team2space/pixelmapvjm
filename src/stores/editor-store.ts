@@ -55,12 +55,20 @@ type EditorStore = {
   zoomBy: (delta: number) => void;
   setPan: (pan: { x: number; y: number }) => void;
   fitCanvas: (viewportWidth: number, viewportHeight: number) => void;
+  updateCanvas: (patch: Partial<EditorCanvasSettings>) => void;
   toggleGrid: () => void;
   toggleSnap: () => void;
   togglePreview: () => void;
   addRectangle: () => void;
   addCabinetArray: (cabinet: Parameters<typeof createCabinetScreen>[2]) => void;
   addLogo: (payload: { dataUrl: string; fileName: string; naturalWidth: number; naturalHeight: number }) => void;
+  applyVisualTemplateToPage: (template: {
+    fillColor: string;
+    borderColor: string;
+    pattern: Partial<ScreenPatternSettings>;
+    animation: Partial<ScreenAnimationSettings>;
+  }) => void;
+  applyScreenAnimationToAll: (sourceId: string) => void;
   selectScreen: (id: string, additive?: boolean) => void;
   selectAll: () => void;
   clearSelection: () => void;
@@ -216,6 +224,28 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         }
       };
     }),
+  updateCanvas: (patch) =>
+    set((state) => {
+      const canvas = {
+        ...state.canvas,
+        ...patch,
+        width: Math.max(1, Math.round(patch.width ?? state.canvas.width)),
+        height: Math.max(1, Math.round(patch.height ?? state.canvas.height)),
+        fps: Math.max(1, Math.round(patch.fps ?? state.canvas.fps)),
+        duration: Math.max(1, patch.duration ?? state.canvas.duration),
+        gridSize: Math.max(1, Math.round(patch.gridSize ?? state.canvas.gridSize))
+      };
+
+      return {
+        canvas,
+        pages: state.pages.map((page) =>
+          page.id === state.pageId
+            ? { ...page, name: canvas.name, width: canvas.width, height: canvas.height }
+            : page
+        ),
+        saveStatus: "EDITING"
+      };
+    }),
   toggleGrid: () =>
     set((state) => ({
       canvas: { ...state.canvas, gridVisible: !state.canvas.gridVisible },
@@ -265,6 +295,49 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         saveStatus: "EDITING"
       };
     });
+  },
+
+  applyVisualTemplateToPage: (template) => {
+    const state = get();
+    if (state.screens.filter((screen) => screen.type !== "logo").length === 0) {
+      return;
+    }
+
+    get().pushHistory();
+    set((current) => ({
+      screens: current.screens.map((screen) =>
+        screen.type === "logo"
+          ? screen
+          : {
+              ...screen,
+              fillColor: template.fillColor,
+              borderColor: template.borderColor,
+              pattern: { ...defaultScreenPattern, ...(screen.pattern as Partial<ScreenPatternSettings>), ...template.pattern },
+              animation: { ...defaultAnimationSettings, ...screen.animation, ...template.animation }
+            }
+      ),
+      saveStatus: "EDITING"
+    }));
+  },
+
+  applyScreenAnimationToAll: (sourceId) => {
+    const source = get().screens.find((screen) => screen.id === sourceId);
+    if (!source || source.type === "logo") {
+      return;
+    }
+
+    get().pushHistory();
+    set((current) => ({
+      screens: current.screens.map((screen) =>
+        screen.type === "logo"
+          ? screen
+          : {
+              ...screen,
+              animation: { ...defaultAnimationSettings, ...source.animation }
+            }
+      ),
+      saveStatus: "EDITING"
+    }));
   },
 
   selectScreen: (id, additive = false) =>

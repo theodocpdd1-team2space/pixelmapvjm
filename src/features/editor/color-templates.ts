@@ -38,5 +38,13 @@ export const animationColorTemplates = [
     borderColor: "#FF3DF2",
     primaryColor: "#FF3DF2",
     secondaryColor: "#2B68FF"
+  },
+  {
+    id: "dark-fade-circle",
+    label: "Dark Fade Circle",
+    fillColor: "#060606",
+    borderColor: "#FF3030",
+    primaryColor: "#111111",
+    secondaryColor: "#000000"
   }
 ];
