@@ -2,7 +2,7 @@ import { WorkspaceShell } from "@/components/layout/workspace-shell";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { StatusPill } from "@/components/ui/status-pill";
 import { prisma } from "@/db/prisma";
-import { requireUser } from "@/features/auth/session";
+import { isAdminUser, requireUser } from "@/features/auth/session";
 import { formatDateTime } from "@/lib/format";
 
 export default async function LicensePage() {
@@ -16,7 +16,7 @@ export default async function LicensePage() {
   ]);
 
   return (
-    <WorkspaceShell active="license" userName={user.name} isAdmin={user.role === "ADMIN"}>
+    <WorkspaceShell active="license" userName={user.name} isAdmin={isAdminUser(user)}>
       <section className="mx-auto max-w-5xl p-5 lg:p-8">
         <div className="border-b border-pf-border pb-6">
           <p className="font-mono text-xs uppercase text-pf-red">LICENSE / LIFETIME ACCESS</p>

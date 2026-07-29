@@ -1,12 +1,12 @@
 import { WorkspaceShell } from "@/components/layout/workspace-shell";
 import { AdminManager } from "@/components/admin/admin-manager";
-import { requireAdmin } from "@/features/auth/session";
+import { PIXELMAPVJM_ADMIN_EMAIL, requireAdmin } from "@/features/auth/session";
 import { isActiveNow } from "@/features/auth/access-utils";
 import { prisma } from "@/db/prisma";
 
 export default async function AdminPage() {
   const admin = await requireAdmin();
-  const users = await prisma.user.findMany({ where: { role: "USER" }, orderBy: { createdAt: "desc" }, select: { id: true, name: true, email: true, role: true, accessStatus: true, lastActiveAt: true, createdAt: true, licenses: { select: { activatedAt: true }, orderBy: { createdAt: "desc" }, take: 1 }, projects: { select: { id: true, _count: { select: { pages: true } } } } } });
+  const users = await prisma.user.findMany({ where: { role: "USER", email: { not: PIXELMAPVJM_ADMIN_EMAIL } }, orderBy: { createdAt: "desc" }, select: { id: true, name: true, email: true, role: true, accessStatus: true, lastActiveAt: true, createdAt: true, licenses: { select: { activatedAt: true }, orderBy: { createdAt: "desc" }, take: 1 }, projects: { select: { id: true, _count: { select: { pages: true } } } } } });
   const [invitations, totalProjects, totalPages, invitationDates] = await Promise.all([
     prisma.accessInvitation.findMany({ where: { status: { in: ["PENDING", "EXPIRED"] } }, orderBy: { createdAt: "desc" }, take: 30, select: { id: true, email: true, name: true, status: true, expiresAt: true, createdAt: true } }),
     prisma.project.count(),

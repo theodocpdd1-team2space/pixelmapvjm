@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { StatusPill } from "@/components/ui/status-pill";
 import { prisma } from "@/db/prisma";
-import { requireUser } from "@/features/auth/session";
+import { isAdminUser, requireUser } from "@/features/auth/session";
 import { createProjectAction } from "@/features/projects/actions";
 import { formatDateTime } from "@/lib/format";
 
@@ -35,7 +35,7 @@ export default async function DashboardPage() {
   ]);
 
   return (
-    <WorkspaceShell active="dashboard" userName={user.name} isAdmin={user.role === "ADMIN"}>
+    <WorkspaceShell active="dashboard" userName={user.name} isAdmin={isAdminUser(user)}>
       <div className="grid min-h-[calc(100vh-4rem)] grid-cols-1 xl:grid-cols-[320px_1fr]">
         <aside className="border-b border-pf-border bg-pf-sidebar p-5 xl:border-b-0 xl:border-r">
           <SectionHeading code="01" title="Project" />

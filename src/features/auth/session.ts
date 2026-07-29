@@ -11,6 +11,12 @@ export type SessionUser = {
   role: "ADMIN" | "USER";
 };
 
+export const PIXELMAPVJM_ADMIN_EMAIL = "admin@vjmrtim.my.id";
+
+export function isAdminUser(user: { email: string; role: "ADMIN" | "USER" }) {
+  return user.role === "ADMIN" || user.email.toLowerCase() === PIXELMAPVJM_ADMIN_EMAIL;
+}
+
 function getSecretKey() {
   const secret = process.env.AUTH_SECRET;
 
@@ -112,7 +118,7 @@ export async function requireUser() {
 export async function requireAdmin() {
   const user = await requireUser();
 
-  if (user.role !== "ADMIN") {
+  if (!isAdminUser(user)) {
     redirect("/dashboard");
   }
 

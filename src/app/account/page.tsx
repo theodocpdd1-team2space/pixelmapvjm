@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { prisma } from "@/db/prisma";
 import { renameAccountAction } from "@/features/auth/actions";
-import { requireUser } from "@/features/auth/session";
+import { isAdminUser, requireUser } from "@/features/auth/session";
 import { formatDateTime } from "@/lib/format";
 
 export default async function AccountPage() {
@@ -14,7 +14,7 @@ export default async function AccountPage() {
   });
 
   return (
-    <WorkspaceShell active="account" userName={user.name} isAdmin={user.role === "ADMIN"}>
+    <WorkspaceShell active="account" userName={user.name} isAdmin={isAdminUser(user)}>
       <section className="mx-auto max-w-5xl p-5 lg:p-8">
         <div className="border-b border-pf-border pb-6">
           <p className="font-mono text-xs uppercase text-pf-red">ACCOUNT / OPERATOR</p>

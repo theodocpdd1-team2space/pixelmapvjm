@@ -6,7 +6,7 @@ import { Button, ButtonLink } from "@/components/ui/button";
 import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { prisma } from "@/db/prisma";
-import { requireUser } from "@/features/auth/session";
+import { isAdminUser, requireUser } from "@/features/auth/session";
 import {
   createPageAction,
   deletePageAction,
@@ -34,7 +34,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
   }
 
   return (
-    <WorkspaceShell active="dashboard" userName={user.name} isAdmin={user.role === "ADMIN"}>
+    <WorkspaceShell active="dashboard" userName={user.name} isAdmin={isAdminUser(user)}>
       <div className="grid min-h-[calc(100vh-4rem)] grid-cols-1 xl:grid-cols-[320px_1fr]">
         <aside className="border-b border-pf-border bg-pf-sidebar p-5 xl:border-b-0 xl:border-r">
           <SectionHeading code="01" title="Project" />

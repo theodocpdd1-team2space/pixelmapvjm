@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { prisma } from "@/db/prisma";
 import { clearRateLimit, isRateLimited } from "@/features/auth/rate-limit";
-import { clearSession, createSession, requireUser } from "@/features/auth/session";
+import { clearSession, createSession, isAdminUser, requireUser } from "@/features/auth/session";
 
 export type AuthActionState = {
   error?: string;
@@ -82,7 +82,7 @@ export async function loginAction(_previousState: AuthActionState, formData: For
   await trackDevice(user.id, user.email);
   await prisma.user.update({ where: { id: user.id }, data: { lastActiveAt: new Date() } });
   await createSession({ id: user.id, email: user.email, name: user.name, role: user.role });
-  redirect(user.role === "ADMIN" ? "/admin" : "/dashboard");
+  redirect(isAdminUser(user) ? "/admin" : "/dashboard");
 }
 
 export async function logoutAction() {
