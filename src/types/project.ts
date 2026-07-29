@@ -149,14 +149,21 @@ const defaultAnimationSchemaValue = {
   direction: "left-to-right" as const
 };
 
+const pixelNumberSchema = z.preprocess((value) => {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return value;
+  }
+  return Math.round(value);
+}, z.number().int());
+
 export const editorScreenSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
   type: z.enum(["rectangle", "square", "led-strip", "quadrilateral", "group", "logo"]),
-  x: z.number(),
-  y: z.number(),
-  width: z.number().positive(),
-  height: z.number().positive(),
+  x: pixelNumberSchema,
+  y: pixelNumberSchema,
+  width: pixelNumberSchema.pipe(z.number().positive()),
+  height: pixelNumberSchema.pipe(z.number().positive()),
   rotation: z.number(),
   scaleX: z.number(),
   scaleY: z.number(),

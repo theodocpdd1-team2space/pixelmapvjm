@@ -43,9 +43,19 @@ const defaultProjectJson: ProjectPageJson = {
 
 async function main() {
   const passwordHash = await bcrypt.hash("devpassword123", 12);
+  const adminEmail = "admin@vjmrtim.my.id";
+  const legacyAdminEmail = "admin@pixelmapvjm.local";
+
+  const existingAdmin = await prisma.user.findUnique({ where: { email: adminEmail } });
+  if (!existingAdmin) {
+    await prisma.user.updateMany({
+      where: { email: legacyAdminEmail, role: "ADMIN" },
+      data: { email: adminEmail }
+    });
+  }
 
   const user = await prisma.user.upsert({
-    where: { email: "admin@pixelmapvjm.local" },
+    where: { email: adminEmail },
     update: {
       name: "PixelMapVJM Admin",
       passwordHash,
@@ -54,7 +64,7 @@ async function main() {
     },
     create: {
       name: "PixelMapVJM Admin",
-      email: "admin@pixelmapvjm.local",
+      email: adminEmail,
       passwordHash,
       role: "ADMIN",
       accessStatus: "ACTIVE",

@@ -7,6 +7,7 @@ export function NumericField({
   value,
   min,
   step = 1,
+  integer = false,
   onCommit,
   onPreview
 }: {
@@ -14,35 +15,41 @@ export function NumericField({
   value: number;
   min?: number;
   step?: number;
+  integer?: boolean;
   onPreview: (value: number) => void;
   onCommit: (value?: number) => void;
 }) {
-  const [draft, setDraft] = useState(String(value));
+  const [draft, setDraft] = useState(formatValue(value, integer));
   const editingRef = useRef(false);
   const cancelRef = useRef(false);
 
   useEffect(() => {
     if (!editingRef.current) {
-      setDraft(String(value));
+      setDraft(formatValue(value, integer));
     }
-  }, [value]);
+  }, [integer, value]);
+
+  function normalizeValue(nextValue: number) {
+    const rounded = integer ? Math.round(nextValue) : nextValue;
+    return min === undefined ? rounded : Math.max(min, rounded);
+  }
 
   function commitDraft() {
     if (cancelRef.current) {
       cancelRef.current = false;
       editingRef.current = false;
-      setDraft(String(value));
+      setDraft(formatValue(value, integer));
       return;
     }
 
     const parsed = Number(draft);
     if (Number.isFinite(parsed)) {
-      const next = min === undefined ? parsed : Math.max(min, parsed);
-      setDraft(String(next));
+      const next = normalizeValue(parsed);
+      setDraft(formatValue(next, integer));
       onPreview(next);
       onCommit(next);
     } else {
-      setDraft(String(value));
+      setDraft(formatValue(value, integer));
       onCommit();
     }
     editingRef.current = false;
@@ -53,7 +60,7 @@ export function NumericField({
       <span className="technical-label">{label}</span>
       <input
         className="technical-input h-9 min-w-0 px-2 py-1 text-xs"
-        inputMode="decimal"
+        inputMode={integer ? "numeric" : "decimal"}
         value={draft}
         min={min}
         step={step}
@@ -68,7 +75,7 @@ export function NumericField({
           setDraft(nextDraft);
           const next = Number(nextDraft);
           if (nextDraft.trim() !== "" && Number.isFinite(next)) {
-            onPreview(next);
+            onPreview(normalizeValue(next));
           }
         }}
         onBlur={commitDraft}
@@ -77,11 +84,15 @@ export function NumericField({
             event.currentTarget.blur();
           } else if (event.key === "Escape") {
             cancelRef.current = true;
-            setDraft(String(value));
+            setDraft(formatValue(value, integer));
             event.currentTarget.blur();
           }
         }}
       />
     </label>
   );
+}
+
+function formatValue(value: number, integer: boolean) {
+  return String(integer ? Math.round(value) : value);
 }

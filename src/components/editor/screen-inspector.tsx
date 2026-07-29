@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { cabinetPresets, cabinetSettingsFromPreset } from "@/features/editor/cabinet-presets";
 import { animationColorTemplates } from "@/features/editor/color-templates";
 import { visualTemplates } from "@/features/editor/visual-templates";
-import { snapRectToCanvas } from "@/features/editor/geometry";
 import { defaultScreenPattern } from "@/features/editor/types";
 import type { AnimationType, CabinetPresetId, PatternMode, ScreenPatternSettings, StaticPatternType } from "@/features/editor/types";
 import { useEditorStore } from "@/stores/editor-store";
@@ -64,24 +63,11 @@ export function ScreenInspector() {
   const pattern = { ...defaultScreenPattern, ...(screen.pattern as Partial<ScreenPatternSettings>) };
 
   function commitGeometry(key: "x" | "y" | "width" | "height", value?: number) {
-    if (value === undefined) {
-      commitTransform();
-      return;
+    if (value !== undefined) {
+      updateScreen(selectedScreen.id, {
+        [key]: key === "width" || key === "height" ? Math.max(1, Math.round(value)) : Math.round(value)
+      });
     }
-
-    const current = useEditorStore.getState();
-    const latest = current.screens.find((item) => item.id === selectedScreen.id);
-    if (!latest || !current.canvas.snappingEnabled) {
-      commitTransform();
-      return;
-    }
-
-    const next = snapRectToCanvas(
-      { x: latest.x, y: latest.y, width: latest.width, height: latest.height, [key]: value },
-      current.canvas,
-      { zoom: current.zoom, otherScreens: current.screens.filter((item) => item.id !== selectedScreen.id && item.visible) }
-    );
-    updateScreen(selectedScreen.id, next);
     commitTransform();
   }
 
@@ -114,18 +100,20 @@ export function ScreenInspector() {
         <NumericField
           label="X"
           value={screen.x}
+          integer
           onPreview={(value) => {
             beginTransform();
-            updateScreen(screen.id, { x: value });
+            updateScreen(screen.id, { x: Math.round(value) });
           }}
           onCommit={(value) => commitGeometry("x", value)}
         />
         <NumericField
           label="Y"
           value={screen.y}
+          integer
           onPreview={(value) => {
             beginTransform();
-            updateScreen(screen.id, { y: value });
+            updateScreen(screen.id, { y: Math.round(value) });
           }}
           onCommit={(value) => commitGeometry("y", value)}
         />
@@ -133,9 +121,10 @@ export function ScreenInspector() {
           label="W"
           value={screen.width}
           min={1}
+          integer
           onPreview={(value) => {
             beginTransform();
-            updateScreen(screen.id, { width: Math.max(1, value) });
+            updateScreen(screen.id, { width: Math.max(1, Math.round(value)) });
           }}
           onCommit={(value) => commitGeometry("width", value)}
         />
@@ -143,9 +132,10 @@ export function ScreenInspector() {
           label="H"
           value={screen.height}
           min={1}
+          integer
           onPreview={(value) => {
             beginTransform();
-            updateScreen(screen.id, { height: Math.max(1, value) });
+            updateScreen(screen.id, { height: Math.max(1, Math.round(value)) });
           }}
           onCommit={(value) => commitGeometry("height", value)}
         />

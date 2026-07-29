@@ -82,7 +82,7 @@ export async function loginAction(_previousState: AuthActionState, formData: For
   await trackDevice(user.id, user.email);
   await prisma.user.update({ where: { id: user.id }, data: { lastActiveAt: new Date() } });
   await createSession({ id: user.id, email: user.email, name: user.name, role: user.role });
-  redirect("/dashboard");
+  redirect(user.role === "ADMIN" ? "/admin" : "/dashboard");
 }
 
 export async function logoutAction() {

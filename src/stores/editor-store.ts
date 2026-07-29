@@ -115,11 +115,24 @@ function normalizeScreenOrder(screens: EditorScreen[]) {
     .sort((a, b) => a.zIndex - b.zIndex)
     .map((screen, index) => ({
       ...screen,
+      x: Math.round(screen.x),
+      y: Math.round(screen.y),
+      width: Math.max(1, Math.round(screen.width)),
+      height: Math.max(1, Math.round(screen.height)),
       cabinet: screen.cabinet ?? { ...defaultCabinetSettings },
       animation: { ...defaultAnimationSettings, ...screen.animation },
       pattern: { ...defaultScreenPattern, ...(screen.pattern as Partial<ScreenPatternSettings>) },
       zIndex: index
     }));
+}
+
+function sanitizeScreenPatch(patch: Partial<EditorScreen>) {
+  const next = { ...patch };
+  if (typeof next.x === "number") next.x = Math.round(next.x);
+  if (typeof next.y === "number") next.y = Math.round(next.y);
+  if (typeof next.width === "number") next.width = Math.max(1, Math.round(next.width));
+  if (typeof next.height === "number") next.height = Math.max(1, Math.round(next.height));
+  return next;
 }
 
 export const useEditorStore = create<EditorStore>((set, get) => ({
@@ -401,7 +414,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
           return screen;
         }
 
-        const next = { ...screen, ...patch };
+        const next = { ...screen, ...sanitizeScreenPatch(patch) };
         if (options?.snap) {
           const snapped = snapRectToCanvas(next, state.canvas);
           next.x = snapped.x;

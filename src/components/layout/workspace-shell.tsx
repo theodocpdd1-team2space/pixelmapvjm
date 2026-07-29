@@ -11,20 +11,21 @@ export function WorkspaceShell({
   isAdmin = false
 }: {
   children: React.ReactNode;
-  active: "dashboard" | "account" | "license" | "editor";
+  active: "dashboard" | "account" | "license" | "editor" | "admin";
   userName: string;
   isAdmin?: boolean;
 }) {
   const nav = [
     { href: "/dashboard", label: "DASHBOARD", key: "dashboard" },
     { href: "/account", label: "ACCOUNT", key: "account" },
-    { href: "/license", label: "LICENSE", key: "license" }
+    { href: "/license", label: "LICENSE", key: "license" },
+    ...(isAdmin ? [{ href: "/admin", label: "ADMIN", key: "admin" }] : [])
   ];
 
   return (
     <main className="min-h-screen bg-pf-bg text-pf-text">
       <PresenceHeartbeat />
-      <header className="flex min-h-16 items-center justify-between border-b border-pf-border bg-pf-sidebar px-5">
+      <header className="flex min-h-16 flex-wrap items-center justify-between gap-3 border-b border-pf-border bg-pf-sidebar px-4 py-3 md:px-5">
         <div className="flex items-center gap-5">
           <Link href="/dashboard" className="font-brand text-xl font-bold uppercase">
             Pixel<span className="text-pf-red">MapVJM</span>
@@ -46,16 +47,30 @@ export function WorkspaceShell({
                 {item.label}
               </Link>
             ))}
-            {isAdmin ? <Link href="/admin" className="border border-transparent px-3 py-2 font-mono text-xs uppercase text-pf-red hover:border-pf-red">ADMIN</Link> : null}
           </nav>
           <span className="hidden font-mono text-xs uppercase text-pf-muted lg:inline">{userName}</span>
           <form action={logoutAction}>
-            <Button type="submit" variant="ghost">
+            <Button type="submit" variant="ghost" className="h-9 px-3 text-xs">
               LOGOUT
             </Button>
           </form>
         </div>
       </header>
+      <nav className="flex gap-2 overflow-x-auto border-b border-pf-border bg-pf-sidebar px-4 py-2 md:hidden">
+        {nav.map((item) => (
+          <Link
+            key={item.key}
+            href={item.href}
+            className={`shrink-0 border px-3 py-2 font-mono text-xs uppercase ${
+              active === item.key
+                ? "border-pf-red text-pf-red"
+                : "border-pf-border text-pf-muted hover:text-pf-text"
+            }`}
+          >
+            {item.label}
+          </Link>
+        ))}
+      </nav>
       {children}
     </main>
   );
