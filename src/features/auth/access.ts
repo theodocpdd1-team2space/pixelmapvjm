@@ -10,7 +10,7 @@ import {
 } from "@/features/auth/constants";
 import { requireAdmin } from "@/features/auth/session";
 import { createAccessToken, hashAccessToken } from "@/features/auth/access-utils";
-import { sendInvitationEmail, sendPasswordResetEmail } from "@/features/auth/email";
+import { sendAdminTestEmail, sendInvitationEmail, sendPasswordResetEmail } from "@/features/auth/email";
 
 const emailSchema = z.string().trim().toLowerCase().email();
 const nameSchema = z.string().trim().min(2).max(80);
@@ -20,7 +20,15 @@ export type AccessActionState = {
   error?: string;
   message?: string;
   link?: string;
+  emailSent?: boolean;
+  emailId?: string;
+  emailError?: string;
+  invitationId?: string;
 };
+
+function logInvite(event: string, payload: Record<string, unknown>) {
+  console.info("[PixelMapVJM Invite]", event, payload);
+}
 
 async function getBaseUrl() {
   if (process.env.NEXT_PUBLIC_APP_URL) {
@@ -59,12 +67,12 @@ export async function createInvitationAction(
   const rawToken = createAccessToken();
   const expiresAt = new Date(Date.now() + INVITATION_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
 
-  await prisma.$transaction(async (tx) => {
+  const invitation = await prisma.$transaction(async (tx) => {
     await tx.accessInvitation.updateMany({
       where: { email, status: "PENDING" },
       data: { status: "REVOKED" }
     });
-    await tx.accessInvitation.create({
+    const createdInvitation = await tx.accessInvitation.create({
       data: {
         email,
         name: parsed.data.name,
@@ -79,15 +87,37 @@ export async function createInvitationAction(
         data: { name: parsed.data.name || existingUser.name, accessStatus: "INVITED", passwordHash: null }
       });
     }
+    return createdInvitation;
+  });
+
+  logInvite("created", {
+    invitationId: invitation.id,
+    email,
+    recipientName: parsed.data.name ?? null,
+    expiresAt: expiresAt.toISOString(),
+    adminId: admin.id
   });
 
   const baseUrl = await getBaseUrl();
   const link = `${baseUrl}/access/setup/${rawToken}`;
   const emailResult = await sendInvitationEmail({ to: email, name: parsed.data.name || email, link });
+  logInvite("create email result", {
+    invitationId: invitation.id,
+    email,
+    sent: emailResult.sent,
+    ...(emailResult.emailId ? { emailId: emailResult.emailId } : {}),
+    ...(emailResult.error ? { error: emailResult.error } : {})
+  });
   revalidatePath("/admin");
   return {
-    message: emailResult.sent ? "Invitation dibuat dan email berhasil dikirim." : "Invitation dibuat. Salin link ini dan kirimkan ke customer.",
-    link
+    message: emailResult.sent
+      ? "Invitation dibuat dan email berhasil dikirim."
+      : "Invitation dibuat, tetapi email gagal dikirim. Manual link tetap aman untuk dikirim.",
+    link,
+    emailSent: emailResult.sent,
+    emailId: emailResult.emailId,
+    emailError: emailResult.error,
+    invitationId: invitation.id
   };
 }
 
@@ -102,17 +132,31 @@ export async function resendInvitationAction(
   }
 
   const invitation = await prisma.accessInvitation.findUnique({ where: { id: invitationId.data } });
-  if (!invitation || invitation.status === "ACCEPTED") {
+  if (!invitation) {
     return { error: "Invitation sudah tidak dapat dikirim ulang." };
+  }
+  if (invitation.status === "ACCEPTED") {
+    return { error: "Invitation sudah diterima. Resend tidak diizinkan." };
+  }
+  if (invitation.status === "REVOKED") {
+    return { error: "Invitation sudah di-revoke. Buat invitation baru untuk customer ini." };
   }
 
   const rawToken = createAccessToken();
+  const expiresAt = new Date(Date.now() + INVITATION_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
+  logInvite("resend started", {
+    invitationId: invitation.id,
+    email: invitation.email,
+    previousStatus: invitation.status,
+    previousExpiresAt: invitation.expiresAt.toISOString(),
+    adminId: admin.id
+  });
   await prisma.$transaction([
     prisma.accessInvitation.update({
       where: { id: invitation.id },
       data: {
         tokenHash: hashAccessToken(rawToken),
-        expiresAt: new Date(Date.now() + INVITATION_EXPIRY_DAYS * 24 * 60 * 60 * 1000),
+        expiresAt,
         status: "PENDING",
         invitedByAdminId: admin.id
       }
@@ -122,12 +166,33 @@ export async function resendInvitationAction(
       data: { accessStatus: "INVITED", passwordHash: null }
     })
   ]);
+  logInvite("token regenerated", {
+    invitationId: invitation.id,
+    email: invitation.email,
+    expiresAt: expiresAt.toISOString()
+  });
 
   const baseUrl = await getBaseUrl();
   const link = `${baseUrl}/access/setup/${rawToken}`;
   const emailResult = await sendInvitationEmail({ to: invitation.email, name: invitation.name || invitation.email, link });
+  logInvite("resend email result", {
+    invitationId: invitation.id,
+    email: invitation.email,
+    sent: emailResult.sent,
+    ...(emailResult.emailId ? { emailId: emailResult.emailId } : {}),
+    ...(emailResult.error ? { error: emailResult.error } : {})
+  });
   revalidatePath("/admin");
-  return { message: emailResult.sent ? "Invitation baru dibuat dan email berhasil dikirim." : "Invitation baru dibuat.", link };
+  return {
+    message: emailResult.sent
+      ? "Invitation regenerated dan email berhasil dikirim."
+      : "Invitation regenerated, tetapi email gagal dikirim. Manual link tetap tersedia.",
+    link,
+    emailSent: emailResult.sent,
+    emailId: emailResult.emailId,
+    emailError: emailResult.error,
+    invitationId: invitation.id
+  };
 }
 
 export async function activateInvitationAction(
@@ -205,7 +270,13 @@ export async function createPasswordResetAction(
   const baseUrl = await getBaseUrl();
   const link = `${baseUrl}/access/reset/${rawToken}`;
   const emailResult = await sendPasswordResetEmail({ to: user.email, name: user.name, link });
-  return { message: emailResult.sent ? "Link reset dibuat dan email berhasil dikirim." : "Link reset password dibuat.", link };
+  return {
+    message: emailResult.sent ? "Link reset dibuat dan email berhasil dikirim." : "Link reset password dibuat. Email gagal, gunakan manual link.",
+    link,
+    emailSent: emailResult.sent,
+    emailId: emailResult.emailId,
+    emailError: emailResult.error
+  };
 }
 
 export async function resetPasswordAction(
@@ -239,4 +310,42 @@ export async function setUserAccessStatusAction(formData: FormData) {
   if (userId === admin.id && status !== "ACTIVE") return;
   await prisma.user.updateMany({ where: { id: userId }, data: { accessStatus: status } });
   revalidatePath("/admin");
+}
+
+export async function revokeInvitationAction(formData: FormData) {
+  const admin = await requireAdmin();
+  const invitationId = z.string().min(1).parse(formData.get("invitationId"));
+  const result = await prisma.accessInvitation.updateMany({
+    where: { id: invitationId, status: "PENDING" },
+    data: { status: "REVOKED" }
+  });
+  logInvite("revoked", { invitationId, adminId: admin.id, updated: result.count });
+  revalidatePath("/admin");
+}
+
+export async function sendAdminTestEmailAction(
+  _previousState: AccessActionState,
+  formData: FormData
+): Promise<AccessActionState> {
+  const admin = await requireAdmin();
+  const recipient = emailSchema.safeParse(formData.get("recipient"));
+  if (!recipient.success) {
+    return { error: "Email test belum valid." };
+  }
+
+  const emailResult = await sendAdminTestEmail({ to: recipient.data });
+  logInvite("admin test email result", {
+    adminId: admin.id,
+    email: recipient.data,
+    sent: emailResult.sent,
+    ...(emailResult.emailId ? { emailId: emailResult.emailId } : {}),
+    ...(emailResult.error ? { error: emailResult.error } : {})
+  });
+
+  return {
+    message: emailResult.sent ? "Test email berhasil dikirim." : "Test email gagal dikirim.",
+    emailSent: emailResult.sent,
+    emailId: emailResult.emailId,
+    emailError: emailResult.error
+  };
 }
