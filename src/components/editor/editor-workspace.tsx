@@ -40,7 +40,7 @@ export function EditorWorkspace({ initialDocument }: { initialDocument: EditorIn
     window.requestAnimationFrame(() => fitCanvas(viewport.width, viewport.height));
   }, [fitCanvas, initialDocument.pageId, initialDocument.projectId, viewport.height, viewport.width]);
 
-  useLocalPageAutosave(initialDocument);
+  const { saveNow } = useLocalPageAutosave(initialDocument);
 
   useEffect(() => {
     function handlePointerMove(event: PointerEvent) {
@@ -85,6 +85,9 @@ export function EditorWorkspace({ initialDocument }: { initialDocument: EditorIn
       } else if (mod && event.key.toLowerCase() === "d") {
         event.preventDefault();
         duplicateSelected();
+      } else if (mod && event.key.toLowerCase() === "s") {
+        event.preventDefault();
+        void saveNow();
       } else if (mod && event.key.toLowerCase() === "z" && event.shiftKey) {
         event.preventDefault();
         redo();
@@ -116,6 +119,7 @@ export function EditorWorkspace({ initialDocument }: { initialDocument: EditorIn
     fitCanvas,
     moveSelected,
     redo,
+    saveNow,
     selectAll,
     setTool,
     undo,
@@ -139,7 +143,7 @@ export function EditorWorkspace({ initialDocument }: { initialDocument: EditorIn
           ) : null}
         </div>
         <section className="grid min-w-0 grid-rows-[48px_1fr_32px]">
-          <EditorToolbar viewport={viewport} />
+          <EditorToolbar viewport={viewport} onSave={() => void saveNow()} />
           <EditorCanvas onViewportChange={setViewport} />
           <EditorStatusBar />
         </section>

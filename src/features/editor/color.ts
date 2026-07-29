@@ -20,6 +20,19 @@ export const patternRenderConstants = {
   pixelDotStepYDivisor: 50
 };
 
+export const animationRenderConstants = {
+  gradientBaseOpacity: 0.1,
+  gradientHeadOpacity: 0.58,
+  horizontalWipeOpacity: 0.34,
+  verticalWipeOpacity: 0.34,
+  scannerOpacity: 0.5,
+  blinkOpacity: 0.42
+};
+
+export function pulseAnimationOpacity(time: number, speed: number) {
+  return 0.5 + Math.sin(time * speed * Math.PI * 2) * 0.2;
+}
+
 export function adaptiveLabelSize(requestedSize: number, width: number, height: number) {
   const automaticSize = Math.min(72, Math.max(28, Math.round(Math.min(width, height) * 0.056)));
   return Math.max(requestedSize, automaticSize);

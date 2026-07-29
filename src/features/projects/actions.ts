@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { prisma } from "@/db/prisma";
 import { requireUser } from "@/features/auth/session";
-import { createDefaultProjectJson, projectPageJsonSchema, toPrismaJson } from "@/types/project";
+import { createDefaultProjectJson, editorScreenSchema, projectPageJsonSchema, toPrismaJson } from "@/types/project";
 
 const idSchema = z.string().min(1);
 const nameSchema = z.string().min(1).max(120);
@@ -15,6 +15,19 @@ const canvasSchema = z.object({
   height: z.coerce.number().int().min(64).max(16384),
   fps: z.coerce.number().int().min(1).max(120),
   duration: z.coerce.number().int().min(1).max(3600)
+});
+const editorCanvasSchema = canvasSchema.extend({
+  backgroundColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/),
+  backgroundTransparent: z.boolean(),
+  gridSize: z.coerce.number().int().min(1).max(4096),
+  snappingEnabled: z.boolean(),
+  gridVisible: z.boolean()
+});
+const saveEditorPageSchema = z.object({
+  projectId: idSchema,
+  pageId: idSchema,
+  canvas: editorCanvasSchema,
+  screens: z.array(editorScreenSchema)
 });
 
 async function getOwnedProject(projectId: string, userId: string) {
@@ -276,4 +289,64 @@ export async function movePageAction(formData: FormData) {
   ]);
 
   revalidatePath(`/dashboard/projects/${projectId}`);
+}
+
+export async function saveEditorPageAction(payload: unknown) {
+  const user = await requireUser();
+  const parsed = saveEditorPageSchema.parse(payload);
+  const project = await getOwnedProject(parsed.projectId, user.id);
+  const page = project?.pages.find((item) => item.id === parsed.pageId);
+
+  if (!project || !page) {
+    throw new Error("Project page not found");
+  }
+
+  const updatedAt = new Date();
+  const projectJson = projectPageJsonSchema.parse({
+    app: "PixelMapVJM",
+    format: "pixelmapvjm-project",
+    schemaVersion: 1,
+    version: 1,
+    page: {
+      name: parsed.canvas.name,
+      canvas: {
+        width: parsed.canvas.width,
+        height: parsed.canvas.height,
+        fps: parsed.canvas.fps,
+        duration: parsed.canvas.duration,
+        backgroundColor: parsed.canvas.backgroundColor,
+        backgroundTransparent: parsed.canvas.backgroundTransparent,
+        gridSize: parsed.canvas.gridSize,
+        snappingEnabled: parsed.canvas.snappingEnabled,
+        gridVisible: parsed.canvas.gridVisible
+      },
+      screens: parsed.screens,
+      animationSettings: { pattern: "none" }
+    }
+  });
+
+  await prisma.$transaction([
+    prisma.projectPage.update({
+      where: { id: parsed.pageId },
+      data: {
+        name: parsed.canvas.name,
+        width: parsed.canvas.width,
+        height: parsed.canvas.height,
+        fps: parsed.canvas.fps,
+        duration: parsed.canvas.duration,
+        projectJson: toPrismaJson(projectJson),
+        updatedAt
+      }
+    }),
+    prisma.project.update({
+      where: { id: parsed.projectId },
+      data: { updatedAt }
+    })
+  ]);
+
+  revalidatePath("/dashboard");
+  revalidatePath(`/dashboard/projects/${parsed.projectId}`);
+  revalidatePath(`/editor/${parsed.projectId}/${parsed.pageId}`);
+
+  return { updatedAt: updatedAt.toISOString() };
 }

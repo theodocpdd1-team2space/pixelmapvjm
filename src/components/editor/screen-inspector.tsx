@@ -514,7 +514,12 @@ export function ScreenInspector() {
               className="h-9 w-full border border-pf-border bg-black"
               type="color"
               value={screen.fillColor}
-              onChange={(event) => updateScreen(screen.id, { fillColor: event.target.value })}
+              onChange={(event) =>
+                updateScreen(screen.id, {
+                  fillColor: event.target.value,
+                  pattern: screen.type === "logo" ? pattern : { ...pattern, backgroundColor: event.target.value }
+                })
+              }
             />
           </label>
           <label className="block space-y-2">

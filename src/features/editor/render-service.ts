@@ -5,7 +5,13 @@ import type {
   EditorScreen,
   ScreenPatternSettings
 } from "@/features/editor/types";
-import { adaptiveLabelSize, colorWithAlpha, patternRenderConstants } from "@/features/editor/color";
+import {
+  adaptiveLabelSize,
+  animationRenderConstants,
+  colorWithAlpha,
+  patternRenderConstants,
+  pulseAnimationOpacity
+} from "@/features/editor/color";
 import { defaultScreenPattern } from "@/features/editor/types";
 
 type RenderOptions = {
@@ -170,9 +176,7 @@ function drawPattern(ctx: CanvasRenderingContext2D, screen: EditorScreen, canvas
     }
   }
 
-  if (pattern.showCabinetInfo || calibration) {
-    drawCabinetGrid(ctx, screen, pattern);
-  }
+  drawCabinetGrid(ctx, screen, pattern);
 
   if (screen.cabinet.showPixelDots) {
     const stepX = Math.max(8, Math.ceil(screen.width / patternRenderConstants.pixelDotStepXDivisor));
@@ -197,7 +201,7 @@ function drawAnimation(ctx: CanvasRenderingContext2D, screen: EditorScreen, time
   const rawProgress = ((time * animation.speed) % 1 + 1) % 1;
   const progress = 0.5 - Math.cos(rawProgress * Math.PI * 2) / 2;
   ctx.save();
-  ctx.globalAlpha = 0.42;
+  const baseAlpha = ctx.globalAlpha;
   ctx.fillStyle = animation.primaryColor;
 
   if (animation.type === "gradient-wipe") {
@@ -214,20 +218,23 @@ function drawAnimation(ctx: CanvasRenderingContext2D, screen: EditorScreen, time
     gradient.addColorStop(0.5, animation.primaryColor);
     gradient.addColorStop(0.82, animation.secondaryColor);
     gradient.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.globalAlpha = 0.12;
+    ctx.globalAlpha = baseAlpha * animationRenderConstants.gradientBaseOpacity;
     ctx.fillStyle = animation.primaryColor;
     ctx.fillRect(0, 0, screen.width, screen.height);
-    ctx.globalAlpha = 0.62;
+    ctx.globalAlpha = baseAlpha * animationRenderConstants.gradientHeadOpacity;
     ctx.fillStyle = gradient;
     ctx.fillRect(horizontal ? head : 0, horizontal ? 0 : head, horizontal ? band : screen.width, horizontal ? screen.height : band);
   } else if (animation.type === "horizontal-wipe") {
     const width = Math.max(1, screen.width * progress);
+    ctx.globalAlpha = baseAlpha * animationRenderConstants.horizontalWipeOpacity;
     ctx.fillRect(animation.direction === "right-to-left" ? screen.width - width : 0, 0, width, screen.height);
   } else if (animation.type === "vertical-wipe") {
     const height = Math.max(1, screen.height * progress);
+    ctx.globalAlpha = baseAlpha * animationRenderConstants.verticalWipeOpacity;
     ctx.fillRect(0, animation.direction === "bottom-to-top" ? screen.height - height : 0, screen.width, height);
   } else if (animation.type === "scanner") {
     ctx.fillStyle = animation.secondaryColor;
+    ctx.globalAlpha = baseAlpha * animationRenderConstants.scannerOpacity;
     const horizontal = animation.direction === "left-to-right" || animation.direction === "right-to-left";
     const barSize = horizontal ? Math.max(18, screen.width * 0.08) : Math.max(18, screen.height * 0.08);
     const pos = horizontal
@@ -237,13 +244,12 @@ function drawAnimation(ctx: CanvasRenderingContext2D, screen: EditorScreen, time
   } else if (animation.type === "radial-wave") {
     const maxRadius = Math.hypot(screen.width, screen.height);
     const baseRadius = progress * maxRadius;
-    ctx.globalAlpha = 1;
     for (let index = 0; index < 5; index += 1) {
       const radius = (baseRadius + index * maxRadius * 0.18) % maxRadius;
       ctx.beginPath();
       ctx.strokeStyle = index % 2 === 0 ? animation.primaryColor : animation.secondaryColor;
       ctx.lineWidth = Math.max(3, screen.width * 0.004);
-      ctx.globalAlpha = 0.75 - index * 0.11;
+      ctx.globalAlpha = baseAlpha * (0.75 - index * 0.11);
       ctx.arc(screen.width / 2, screen.height / 2, radius, 0, Math.PI * 2);
       ctx.stroke();
     }
@@ -264,16 +270,17 @@ function drawAnimation(ctx: CanvasRenderingContext2D, screen: EditorScreen, time
     gradient.addColorStop(0.34, colorWithAlpha(animation.secondaryColor, 0.7));
     gradient.addColorStop(0.62, colorWithAlpha(animation.primaryColor, 0.28));
     gradient.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.globalAlpha = breathe;
+    ctx.globalAlpha = baseAlpha * breathe;
     ctx.fillStyle = gradient;
     ctx.beginPath();
     ctx.arc(screen.width / 2, screen.height / 2, radius, 0, Math.PI * 2);
     ctx.fill();
   } else if (animation.type === "pulse") {
-    ctx.globalAlpha = 0.25 + Math.sin(time * animation.speed * Math.PI * 2) * 0.2 + 0.2;
+    ctx.globalAlpha = baseAlpha * pulseAnimationOpacity(time, animation.speed);
     ctx.fillRect(0, 0, screen.width, screen.height);
   } else if (animation.type === "blink" && progress < 0.5) {
     ctx.fillStyle = animation.secondaryColor;
+    ctx.globalAlpha = baseAlpha * animationRenderConstants.blinkOpacity;
     ctx.fillRect(0, 0, screen.width, screen.height);
   }
 

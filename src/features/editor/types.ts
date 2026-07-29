@@ -6,6 +6,7 @@ export type SaveStatus =
   | "LOCAL SAVED"
   | "SYNCING CLOUD"
   | "CLOUD SYNCED"
+  | "LOCAL SAVE FAILED"
   | "SYNC FAILED - LOCAL COPY SAFE";
 
 export type ScreenType = "rectangle" | "square" | "led-strip" | "quadrilateral" | "group" | "logo";

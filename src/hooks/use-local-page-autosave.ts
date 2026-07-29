@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { loadLocalPage, saveLocalPage } from "@/db/local-project-repository";
+import { saveEditorPageAction } from "@/features/projects/actions";
 import type { EditorInitialDocument } from "@/features/editor/types";
 import { useEditorStore } from "@/stores/editor-store";
 
@@ -16,6 +17,62 @@ export function useLocalPageAutosave(initialDocument: EditorInitialDocument) {
   const saveStatus = useEditorStore((state) => state.saveStatus);
   const loadDocument = useEditorStore((state) => state.loadDocument);
   const setSaveStatus = useEditorStore((state) => state.setSaveStatus);
+
+  const saveLocalCopy = useCallback(async () => {
+    await saveLocalPage(
+      {
+        id: pageId,
+        projectId,
+        name: canvas.name,
+        width: canvas.width,
+        height: canvas.height,
+        fps: canvas.fps,
+        duration: canvas.duration,
+        projectJson: {
+          app: "PixelMapVJM",
+          format: "pixelmapvjm-project",
+          schemaVersion: 1,
+          version: 1,
+          page: {
+            name: canvas.name,
+            canvas,
+            screens,
+            animationSettings: { pattern: "none" }
+          }
+        },
+        updatedAt: new Date().toISOString()
+      },
+      projectName,
+      pages.length
+    );
+  }, [canvas, pageId, pages.length, projectId, projectName, screens]);
+
+  const saveNow = useCallback(async () => {
+    if (!projectId || !pageId) {
+      return;
+    }
+
+    setSaveStatus("SAVING LOCAL");
+    try {
+      await saveLocalCopy();
+    } catch {
+      setSaveStatus("LOCAL SAVE FAILED");
+      return;
+    }
+
+    try {
+      setSaveStatus("SYNCING CLOUD");
+      await saveEditorPageAction({
+        projectId,
+        pageId,
+        canvas,
+        screens
+      });
+      setSaveStatus("CLOUD SYNCED");
+    } catch {
+      setSaveStatus("SYNC FAILED - LOCAL COPY SAFE");
+    }
+  }, [canvas, pageId, projectId, saveLocalCopy, screens, setSaveStatus]);
 
   useEffect(() => {
     if (loadedLocalRef.current) {
@@ -45,36 +102,13 @@ export function useLocalPageAutosave(initialDocument: EditorInitialDocument) {
 
     const timer = window.setTimeout(() => {
       setSaveStatus("SAVING LOCAL");
-      void saveLocalPage(
-        {
-          id: pageId,
-          projectId,
-          name: canvas.name,
-          width: canvas.width,
-          height: canvas.height,
-          fps: canvas.fps,
-          duration: canvas.duration,
-          projectJson: {
-            app: "PixelMapVJM",
-            format: "pixelmapvjm-project",
-            schemaVersion: 1,
-            version: 1,
-            page: {
-              name: canvas.name,
-              canvas,
-              screens,
-              animationSettings: { pattern: "none" }
-            }
-          },
-          updatedAt: new Date().toISOString()
-        },
-        projectName,
-        pages.length
-      )
+      void saveLocalCopy()
         .then(() => setSaveStatus("LOCAL SAVED"))
-        .catch(() => setSaveStatus("SYNC FAILED - LOCAL COPY SAFE"));
+        .catch(() => setSaveStatus("LOCAL SAVE FAILED"));
     }, 1200);
 
     return () => window.clearTimeout(timer);
-  }, [canvas, pageId, pages.length, projectId, projectName, saveStatus, screens, setSaveStatus]);
+  }, [pageId, projectId, saveLocalCopy, saveStatus, setSaveStatus]);
+
+  return { saveNow };
 }

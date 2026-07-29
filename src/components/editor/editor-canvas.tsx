@@ -4,7 +4,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Circle, Group, Image as KonvaImage, Layer, Line, Rect, Stage, Text, Transformer } from "react-konva";
 import type Konva from "konva";
 import type { KonvaEventObject } from "konva/lib/Node";
-import { adaptiveLabelSize, colorWithAlpha, patternRenderConstants } from "@/features/editor/color";
+import {
+  adaptiveLabelSize,
+  animationRenderConstants,
+  colorWithAlpha,
+  patternRenderConstants,
+  pulseAnimationOpacity
+} from "@/features/editor/color";
 import { snapRectToCanvas } from "@/features/editor/geometry";
 import { defaultScreenPattern } from "@/features/editor/types";
 import type { EditorScreen, ScreenPatternSettings } from "@/features/editor/types";
@@ -284,7 +290,7 @@ function ScreenPixelOverlay({
   const animation = screen.animation;
   const rawProgress = ((animationTime * animation.speed) % 1 + 1) % 1;
   const progress = 0.5 - Math.cos(rawProgress * Math.PI * 2) / 2;
-  const pulse = 0.3 + Math.sin(animationTime * animation.speed * Math.PI * 2) * 0.2 + 0.2;
+  const pulse = pulseAnimationOpacity(animationTime, animation.speed);
 
   if (animation.type === "gradient-wipe") {
     const horizontal = animation.direction === "left-to-right" || animation.direction === "right-to-left";
@@ -300,7 +306,7 @@ function ScreenPixelOverlay({
         width={screen.width}
         height={screen.height}
         fill={animation.primaryColor}
-        opacity={0.1}
+        opacity={animationRenderConstants.gradientBaseOpacity}
         listening={false}
       />,
       <Rect
@@ -323,7 +329,7 @@ function ScreenPixelOverlay({
           1,
           "rgba(0,0,0,0)"
         ]}
-        opacity={0.58}
+        opacity={animationRenderConstants.gradientHeadOpacity}
         listening={false}
       />
     );
@@ -337,7 +343,7 @@ function ScreenPixelOverlay({
         width={width}
         height={screen.height}
         fill={animation.primaryColor}
-        opacity={0.34}
+        opacity={animationRenderConstants.horizontalWipeOpacity}
         listening={false}
       />
     );
@@ -351,7 +357,7 @@ function ScreenPixelOverlay({
         width={screen.width}
         height={height}
         fill={animation.primaryColor}
-        opacity={0.34}
+        opacity={animationRenderConstants.verticalWipeOpacity}
         listening={false}
       />
     );
@@ -370,7 +376,7 @@ function ScreenPixelOverlay({
         width={horizontal ? barSize : screen.width}
         height={horizontal ? screen.height : barSize}
         fill={animation.secondaryColor}
-        opacity={0.5}
+        opacity={animationRenderConstants.scannerOpacity}
         listening={false}
       />
     );
@@ -427,7 +433,14 @@ function ScreenPixelOverlay({
     );
   } else if (animation.type === "blink" && progress < 0.5) {
     elements.push(
-      <Rect key="anim-blink" width={screen.width} height={screen.height} fill={animation.secondaryColor} opacity={0.42} listening={false} />
+      <Rect
+        key="anim-blink"
+        width={screen.width}
+        height={screen.height}
+        fill={animation.secondaryColor}
+        opacity={animationRenderConstants.blinkOpacity}
+        listening={false}
+      />
     );
   }
 
