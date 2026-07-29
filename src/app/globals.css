@@ -1,0 +1,107 @@
+@import "tailwindcss";
+
+@theme {
+  --color-pf-bg: #070707;
+  --color-pf-sidebar: #0d0d0d;
+  --color-pf-panel: #141414;
+  --color-pf-border: #292929;
+  --color-pf-red: #ff3030;
+  --color-pf-darkRed: #8f1010;
+  --color-pf-text: #f4f4f4;
+  --color-pf-muted: #858585;
+  --color-pf-success: #32d583;
+  --color-pf-warning: #f5a524;
+  --font-brand: var(--font-orbitron);
+  --font-ui: var(--font-chakra);
+  --font-mono: var(--font-jetbrains);
+}
+
+:root {
+  --pf-bg: #070707;
+  --pf-sidebar: #0d0d0d;
+  --pf-panel: #141414;
+  --pf-border: #292929;
+  --pf-red: #ff3030;
+  --pf-dark-red: #8f1010;
+  --pf-text: #f4f4f4;
+  --pf-muted: #858585;
+  --pf-success: #32d583;
+  --pf-warning: #f5a524;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--pf-bg);
+  color: var(--pf-text);
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  background:
+    linear-gradient(rgba(255, 48, 48, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 48, 48, 0.035) 1px, transparent 1px),
+    radial-gradient(circle at top right, rgba(143, 16, 16, 0.18), transparent 32rem),
+    var(--pf-bg);
+  background-size: 40px 40px, 40px 40px, auto, auto;
+  color: var(--pf-text);
+  font-family: var(--font-chakra), sans-serif;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+::selection {
+  background: rgba(255, 48, 48, 0.38);
+  color: #ffffff;
+}
+
+.technical-panel {
+  background: rgba(20, 20, 20, 0.92);
+  border: 1px solid var(--pf-border);
+}
+
+.technical-input {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--pf-border);
+  background: #0a0a0a;
+  color: var(--pf-text);
+  padding: 0.72rem 0.85rem;
+  outline: none;
+  font-family: var(--font-jetbrains), monospace;
+}
+
+select.technical-input {
+  text-overflow: ellipsis;
+}
+
+.technical-input:focus {
+  border-color: var(--pf-red);
+  box-shadow: 0 0 0 1px rgba(255, 48, 48, 0.3);
+}
+
+.technical-label {
+  display: block;
+  color: var(--pf-muted);
+  font-family: var(--font-jetbrains), monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.status-dot {
+  display: inline-block;
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 999px;
+  background: var(--pf-success);
+  box-shadow: 0 0 12px rgba(50, 213, 131, 0.5);
+}

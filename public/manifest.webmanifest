@@ -1,0 +1,10 @@
+{
+  "name": "PixelMapVJM",
+  "short_name": "PixelMapVJM",
+  "description": "Local-first LED pixel mapping workspace",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#070707",
+  "theme_color": "#070707",
+  "icons": []
+}
