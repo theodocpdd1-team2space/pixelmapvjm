@@ -14,6 +14,7 @@ import type {
 import { duplicateScreen, createCabinetScreen, createLogoScreen, createRectangleScreen } from "@/features/editor/screen-factory";
 import { clamp, fitZoom, snapRectToCanvas } from "@/features/editor/geometry";
 import { defaultCabinetSettings } from "@/features/editor/cabinet-presets";
+import { normalizeScreenMask } from "@/features/editor/mask";
 import { defaultScreenPattern } from "@/features/editor/types";
 
 const HISTORY_LIMIT = 100;
@@ -120,6 +121,7 @@ function normalizeScreenOrder(screens: EditorScreen[]) {
       width: Math.max(1, Math.round(screen.width)),
       height: Math.max(1, Math.round(screen.height)),
       cabinet: screen.cabinet ?? { ...defaultCabinetSettings },
+      mask: normalizeScreenMask(screen.mask),
       animation: { ...defaultAnimationSettings, ...screen.animation },
       pattern: { ...defaultScreenPattern, ...(screen.pattern as Partial<ScreenPatternSettings>) },
       zIndex: index

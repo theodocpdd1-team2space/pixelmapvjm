@@ -5,6 +5,7 @@ import type {
   EditorScreen,
   ScreenPatternSettings
 } from "@/features/editor/types";
+import { getStrobeAnimationState } from "@/features/editor/animation";
 import {
   adaptiveLabelSize,
   animationRenderConstants,
@@ -12,6 +13,7 @@ import {
   patternRenderConstants,
   pulseAnimationOpacity
 } from "@/features/editor/color";
+import { drawMaskPath, isMaskActive, normalizeScreenMask } from "@/features/editor/mask";
 import { defaultScreenPattern } from "@/features/editor/types";
 
 type RenderOptions = {
@@ -93,7 +95,13 @@ function drawCabinetGrid(ctx: CanvasRenderingContext2D, screen: EditorScreen, pa
   ctx.globalAlpha = baseAlpha;
 }
 
-function drawPattern(ctx: CanvasRenderingContext2D, screen: EditorScreen, canvas: EditorCanvasSettings, time: number) {
+function drawPattern(
+  ctx: CanvasRenderingContext2D,
+  screen: EditorScreen,
+  canvas: EditorCanvasSettings,
+  screens: EditorScreen[],
+  time: number
+) {
   const pattern = { ...defaultScreenPattern, ...(screen.pattern as Partial<ScreenPatternSettings>) };
   const calibration = pattern.type === "mapper-calibration" || pattern.type === "calibration";
   const globalOffsetX = pattern.mode === "global" ? screen.x : 0;
@@ -189,10 +197,10 @@ function drawPattern(ctx: CanvasRenderingContext2D, screen: EditorScreen, canvas
     }
   }
 
-  drawAnimation(ctx, screen, time);
+  drawAnimation(ctx, screen, screens, time);
 }
 
-function drawAnimation(ctx: CanvasRenderingContext2D, screen: EditorScreen, time: number) {
+function drawAnimation(ctx: CanvasRenderingContext2D, screen: EditorScreen, screens: EditorScreen[], time: number) {
   const animation = screen.animation;
   if (animation.type === "none") {
     return;
@@ -282,6 +290,13 @@ function drawAnimation(ctx: CanvasRenderingContext2D, screen: EditorScreen, time
     ctx.fillStyle = animation.secondaryColor;
     ctx.globalAlpha = baseAlpha * animationRenderConstants.blinkOpacity;
     ctx.fillRect(0, 0, screen.width, screen.height);
+  } else if (animation.type === "strobe-sequence" || animation.type === "strobe-random") {
+    const strobe = getStrobeAnimationState(screen, screens, time);
+    if (strobe.active) {
+      ctx.fillStyle = animation.secondaryColor;
+      ctx.globalAlpha = baseAlpha * strobe.opacity;
+      ctx.fillRect(0, 0, screen.width, screen.height);
+    }
   }
 
   ctx.restore();
@@ -350,8 +365,7 @@ export async function renderEditorFrame(
       ctx.translate(screen.x, screen.y);
       ctx.rotate((screen.rotation * Math.PI) / 180);
       ctx.globalAlpha = screen.opacity;
-      ctx.beginPath();
-      ctx.rect(0, 0, screen.width, screen.height);
+      drawMaskPath(ctx, normalizeScreenMask(screen.mask), screen.width, screen.height);
       ctx.clip();
 
       const logoDataUrl = typeof screen.metadata.logoDataUrl === "string" ? screen.metadata.logoDataUrl : "";
@@ -361,7 +375,7 @@ export async function renderEditorFrame(
           ctx.drawImage(logo, 0, 0, screen.width, screen.height);
         }
       } else {
-        drawPattern(ctx, screen, canvasSettings, options.time ?? 0);
+        drawPattern(ctx, screen, canvasSettings, screens, options.time ?? 0);
       }
 
       if (screen.type !== "logo" && logo) {
@@ -378,7 +392,12 @@ export async function renderEditorFrame(
       ctx.rotate((screen.rotation * Math.PI) / 180);
       ctx.strokeStyle = screen.borderColor;
       ctx.lineWidth = screen.borderWidth;
-      ctx.strokeRect(0, 0, screen.width, screen.height);
+      if (isMaskActive(normalizeScreenMask(screen.mask))) {
+        drawMaskPath(ctx, normalizeScreenMask(screen.mask), screen.width, screen.height);
+        ctx.stroke();
+      } else {
+        ctx.strokeRect(0, 0, screen.width, screen.height);
+      }
       ctx.restore();
     });
 

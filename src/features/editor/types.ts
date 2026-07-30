@@ -31,6 +31,7 @@ export type EditorScreen = {
   zIndex: number;
   groupId: string | null;
   cabinet: CabinetSettings;
+  mask: ScreenMaskSettings;
   pattern: Record<string, unknown>;
   animation: ScreenAnimationSettings;
   metadata: Record<string, unknown>;
@@ -49,6 +50,28 @@ export type StaticPatternType =
   | "screen-label";
 
 export type PatternMode = "local" | "global";
+
+export type ScreenMaskType = "none" | "rectangle" | "triangle" | "trapezoid" | "custom";
+
+export type MaskPoint = {
+  x: number;
+  y: number;
+};
+
+export type ScreenMaskSettings = {
+  type: ScreenMaskType;
+  points: MaskPoint[];
+};
+
+export const defaultScreenMask: ScreenMaskSettings = {
+  type: "none",
+  points: [
+    { x: 0, y: 0 },
+    { x: 1, y: 0 },
+    { x: 1, y: 1 },
+    { x: 0, y: 1 }
+  ]
+};
 
 export type ScreenPatternSettings = {
   type: StaticPatternType;
@@ -163,7 +186,9 @@ export type AnimationType =
   | "radial-wave"
   | "fade-gradient-circle"
   | "pulse"
-  | "blink";
+  | "blink"
+  | "strobe-sequence"
+  | "strobe-random";
 
 export type ScreenAnimationSettings = {
   type: AnimationType;

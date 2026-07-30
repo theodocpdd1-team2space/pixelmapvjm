@@ -49,7 +49,19 @@ const defaultCabinetSchemaValue = {
 
 const animationSchema = z.object({
   type: z
-    .enum(["none", "gradient-wipe", "horizontal-wipe", "vertical-wipe", "scanner", "radial-wave", "fade-gradient-circle", "pulse", "blink"])
+    .enum([
+      "none",
+      "gradient-wipe",
+      "horizontal-wipe",
+      "vertical-wipe",
+      "scanner",
+      "radial-wave",
+      "fade-gradient-circle",
+      "pulse",
+      "blink",
+      "strobe-sequence",
+      "strobe-random"
+    ])
     .default("gradient-wipe"),
   primaryColor: z.string().default("#32D583"),
   secondaryColor: z.string().default("#FF3030"),
@@ -149,6 +161,24 @@ const defaultAnimationSchemaValue = {
   direction: "left-to-right" as const
 };
 
+const maskPointSchema = z.object({
+  x: z.number().min(0).max(1),
+  y: z.number().min(0).max(1)
+});
+const defaultMaskSchemaValue = {
+  type: "none" as const,
+  points: [
+    { x: 0, y: 0 },
+    { x: 1, y: 0 },
+    { x: 1, y: 1 },
+    { x: 0, y: 1 }
+  ]
+};
+const maskSchema = z.object({
+  type: z.enum(["none", "rectangle", "triangle", "trapezoid", "custom"]).default("none"),
+  points: z.array(maskPointSchema).min(3).max(12).default(defaultMaskSchemaValue.points)
+});
+
 const pixelNumberSchema = z.preprocess((value) => {
   if (typeof value !== "number" || !Number.isFinite(value)) {
     return value;
@@ -176,6 +206,7 @@ export const editorScreenSchema = z.object({
   zIndex: z.number().int(),
   groupId: z.string().nullable(),
   cabinet: cabinetSchema.default(defaultCabinetSchemaValue),
+  mask: maskSchema.default(defaultMaskSchemaValue),
   pattern: patternSchema.default(defaultPatternSchemaValue),
   animation: animationSchema.default(defaultAnimationSchemaValue),
   metadata: z.record(z.string(), z.unknown()).default({})

@@ -1,13 +1,23 @@
 "use client";
 
-import { Copy, Lock, Sparkles, Trash2, Unlock } from "lucide-react";
+import { Copy, Lock, Plus, Sparkles, Trash2, Unlock } from "lucide-react";
 import { NumericField } from "@/components/editor/numeric-field";
 import { Button } from "@/components/ui/button";
+import { isStrobeAnimation } from "@/features/editor/animation";
 import { cabinetPresets, cabinetSettingsFromPreset } from "@/features/editor/cabinet-presets";
 import { animationColorTemplates } from "@/features/editor/color-templates";
+import { addMaskPoint, maskPresetPoints, normalizeScreenMask, removeMaskPoint } from "@/features/editor/mask";
 import { visualTemplates } from "@/features/editor/visual-templates";
 import { defaultScreenPattern } from "@/features/editor/types";
-import type { AnimationType, CabinetPresetId, PatternMode, ScreenPatternSettings, StaticPatternType } from "@/features/editor/types";
+import type {
+  AnimationType,
+  CabinetPresetId,
+  PatternMode,
+  ScreenMaskSettings,
+  ScreenMaskType,
+  ScreenPatternSettings,
+  StaticPatternType
+} from "@/features/editor/types";
 import { useEditorStore } from "@/stores/editor-store";
 
 export function ScreenInspector() {
@@ -61,6 +71,7 @@ export function ScreenInspector() {
 
   const selectedScreen = screen;
   const pattern = { ...defaultScreenPattern, ...(screen.pattern as Partial<ScreenPatternSettings>) };
+  const mask = normalizeScreenMask(screen.mask);
 
   function commitGeometry(key: "x" | "y" | "width" | "height", value?: number) {
     if (value !== undefined) {
@@ -69,6 +80,17 @@ export function ScreenInspector() {
       });
     }
     commitTransform();
+  }
+
+  function updateMask(nextMask: ScreenMaskSettings) {
+    updateScreen(selectedScreen.id, { mask: normalizeScreenMask(nextMask) });
+  }
+
+  function updateMaskPoint(index: number, axis: "x" | "y", value: number) {
+    const nextPoints = mask.points.map((point, pointIndex) =>
+      pointIndex === index ? { ...point, [axis]: Math.min(1, Math.max(0, value / 100)) } : point
+    );
+    updateMask({ type: "custom", points: nextPoints });
   }
 
   return (
@@ -90,12 +112,6 @@ export function ScreenInspector() {
           }}
         />
       </label>
-      {screen.type !== "logo" ? (
-        <Button type="button" className="h-10 w-full" onClick={() => applyScreenAnimationToAll(screen.id)}>
-          <Sparkles size={14} />
-          APPLY ANIMATION TO ALL
-        </Button>
-      ) : null}
       <div className="grid grid-cols-2 gap-3">
         <NumericField
           label="X"
@@ -160,6 +176,84 @@ export function ScreenInspector() {
           }}
           onCommit={commitTransform}
         />
+      </div>
+      <div className="space-y-3 border border-pf-border bg-black/20 p-3">
+        <p className="font-mono text-xs uppercase text-pf-red">Mask Shape</p>
+        <label className="block space-y-2">
+          <span className="technical-label">Shape</span>
+          <select
+            className="technical-input h-9 text-xs"
+            value={mask.type}
+            onChange={(event) => {
+              const type = event.target.value as ScreenMaskType;
+              updateMask({
+                type,
+                points: type === "custom" ? maskPresetPoints("trapezoid") : maskPresetPoints(type)
+              });
+            }}
+          >
+            <option value="none">No Mask</option>
+            <option value="rectangle">Rectangle</option>
+            <option value="triangle">Triangle</option>
+            <option value="trapezoid">Trapezoid</option>
+            <option value="custom">Custom Shape</option>
+          </select>
+        </label>
+        {mask.type !== "none" && mask.type !== "rectangle" ? (
+          <div className="space-y-2">
+            <div className="grid grid-cols-2 gap-2">
+              <Button type="button" className="h-9 text-xs" onClick={() => updateMask(addMaskPoint(mask))}>
+                <Plus size={14} />
+                POINT
+              </Button>
+              <Button
+                type="button"
+                className="h-9 text-xs"
+                onClick={() => updateMask({ type: mask.type, points: maskPresetPoints(mask.type) })}
+              >
+                RESET
+              </Button>
+            </div>
+            <div className="space-y-2">
+              {mask.points.map((point, index) => (
+                <div key={`${screen.id}-mask-point-${index}`} className="grid grid-cols-[auto_1fr_1fr_auto] items-end gap-2">
+                  <span className="pb-2 font-mono text-[0.68rem] uppercase text-pf-muted">P{index + 1}</span>
+                  <label className="block space-y-1">
+                    <span className="technical-label">X%</span>
+                    <input
+                      className="technical-input h-8 text-xs"
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={Math.round(point.x * 100)}
+                      onChange={(event) => updateMaskPoint(index, "x", Number(event.target.value) || 0)}
+                    />
+                  </label>
+                  <label className="block space-y-1">
+                    <span className="technical-label">Y%</span>
+                    <input
+                      className="technical-input h-8 text-xs"
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={Math.round(point.y * 100)}
+                      onChange={(event) => updateMaskPoint(index, "y", Number(event.target.value) || 0)}
+                    />
+                  </label>
+                  <Button
+                    type="button"
+                    variant="danger"
+                    className="h-8 w-8 p-0"
+                    disabled={mask.points.length <= 3}
+                    onClick={() => updateMask(removeMaskPoint(mask, index))}
+                  >
+                    <Trash2 size={13} />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
       </div>
       <div className="space-y-3 border border-pf-border bg-black/20 p-3">
         <p className="font-mono text-xs uppercase text-pf-red">Cabinet Engine</p>
@@ -574,28 +668,32 @@ export function ScreenInspector() {
             <option value="fade-gradient-circle">Fade Gradient Circle</option>
             <option value="pulse">Pulse</option>
             <option value="blink">Blink</option>
+            <option value="strobe-sequence">Screen Strobe Sequence</option>
+            <option value="strobe-random">Screen Strobe Random</option>
           </select>
         </label>
-        <label className="block space-y-2">
-          <span className="technical-label">Direction</span>
-          <select
-            className="technical-input h-9 text-xs"
-            value={screen.animation.direction}
-            onChange={(event) =>
-              updateScreen(screen.id, {
-                animation: {
-                  ...screen.animation,
-                  direction: event.target.value as typeof screen.animation.direction
-                }
-              })
-            }
-          >
-            <option value="left-to-right">Left to Right</option>
-            <option value="right-to-left">Right to Left</option>
-            <option value="top-to-bottom">Top to Bottom</option>
-            <option value="bottom-to-top">Bottom to Top</option>
-          </select>
-        </label>
+        {!isStrobeAnimation(screen.animation.type) ? (
+          <label className="block space-y-2">
+            <span className="technical-label">Direction</span>
+            <select
+              className="technical-input h-9 text-xs"
+              value={screen.animation.direction}
+              onChange={(event) =>
+                updateScreen(screen.id, {
+                  animation: {
+                    ...screen.animation,
+                    direction: event.target.value as typeof screen.animation.direction
+                  }
+                })
+              }
+            >
+              <option value="left-to-right">Left to Right</option>
+              <option value="right-to-left">Right to Left</option>
+              <option value="top-to-bottom">Top to Bottom</option>
+              <option value="bottom-to-top">Bottom to Top</option>
+            </select>
+          </label>
+        ) : null}
         <NumericField
           label="Speed"
           value={screen.animation.speed}
@@ -606,6 +704,12 @@ export function ScreenInspector() {
           }
           onCommit={() => undefined}
         />
+        {screen.type !== "logo" ? (
+          <Button type="button" className="h-10 w-full" onClick={() => applyScreenAnimationToAll(screen.id)}>
+            <Sparkles size={14} />
+            APPLY EFFECT TO ALL
+          </Button>
+        ) : null}
       </div>
       <div className="grid grid-cols-3 gap-2">
         <Button type="button" onClick={() => toggleLock(screen.id)}>

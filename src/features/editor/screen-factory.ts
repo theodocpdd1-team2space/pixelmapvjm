@@ -1,5 +1,5 @@
 import type { CabinetSettings, EditorCanvasSettings, EditorScreen } from "@/features/editor/types";
-import { defaultScreenAnimation, defaultScreenPattern } from "@/features/editor/types";
+import { defaultScreenAnimation, defaultScreenMask, defaultScreenPattern } from "@/features/editor/types";
 import { defaultCabinetSettings } from "@/features/editor/cabinet-presets";
 
 export function createRectangleScreen(canvas: EditorCanvasSettings, index: number): EditorScreen {
@@ -26,6 +26,7 @@ export function createRectangleScreen(canvas: EditorCanvasSettings, index: numbe
     zIndex: index,
     groupId: null,
     cabinet: { ...defaultCabinetSettings },
+    mask: { ...defaultScreenMask, points: defaultScreenMask.points.map((point) => ({ ...point })) },
     pattern: { ...defaultScreenPattern },
     animation: { ...defaultScreenAnimation },
     metadata: {}
@@ -93,6 +94,7 @@ export function createLogoScreen(
     zIndex: index,
     groupId: null,
     cabinet: { ...defaultCabinetSettings, showPixelDots: false, showCabinetGrid: false },
+    mask: { ...defaultScreenMask, points: defaultScreenMask.points.map((point) => ({ ...point })) },
     pattern: { ...defaultScreenPattern, type: "solid", showScreenName: false, showResolution: false, showCabinetInfo: false },
     animation: { ...defaultScreenAnimation },
     metadata: {

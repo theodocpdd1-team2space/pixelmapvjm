@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Circle, Group, Image as KonvaImage, Layer, Line, Rect, Stage, Text, Transformer } from "react-konva";
 import type Konva from "konva";
 import type { KonvaEventObject } from "konva/lib/Node";
+import { getStrobeAnimationState } from "@/features/editor/animation";
 import {
   adaptiveLabelSize,
   animationRenderConstants,
@@ -12,8 +13,9 @@ import {
   pulseAnimationOpacity
 } from "@/features/editor/color";
 import { snapRectToCanvas } from "@/features/editor/geometry";
+import { drawMaskPath, isMaskActive, maskAbsolutePoints, normalizeScreenMask } from "@/features/editor/mask";
 import { defaultScreenPattern } from "@/features/editor/types";
-import type { EditorScreen, ScreenPatternSettings } from "@/features/editor/types";
+import type { EditorScreen, MaskPoint, ScreenPatternSettings } from "@/features/editor/types";
 import { useEditorStore } from "@/stores/editor-store";
 
 function useElementSize(onChange: (size: { width: number; height: number }) => void) {
@@ -108,6 +110,91 @@ function useHtmlImage(src: string | null) {
   }, [src]);
 
   return src ? image : null;
+}
+
+function maskClipFunc(screen: EditorScreen) {
+  return (context: { beginPath: () => void; moveTo: (x: number, y: number) => void; lineTo: (x: number, y: number) => void; closePath: () => void; rect?: (x: number, y: number, width: number, height: number) => void }) => {
+    drawMaskPath(context, normalizeScreenMask(screen.mask), screen.width, screen.height);
+  };
+}
+
+function MaskEditorHandles({ screen }: { screen: EditorScreen }) {
+  const beginTransform = useEditorStore((state) => state.beginTransform);
+  const commitTransform = useEditorStore((state) => state.commitTransform);
+  const updateScreen = useEditorStore((state) => state.updateScreen);
+  const mask = normalizeScreenMask(screen.mask);
+  const points = maskAbsolutePoints(mask, screen.width, screen.height);
+
+  if (!isMaskActive(mask) || mask.type === "rectangle" || screen.locked) {
+    return null;
+  }
+
+  function updatePoint(index: number, point: MaskPoint) {
+    const nextPoints = mask.points.map((item, pointIndex) => (pointIndex === index ? point : item));
+    updateScreen(screen.id, {
+      mask: {
+        type: "custom",
+        points: nextPoints
+      }
+    });
+  }
+
+  return (
+    <Group x={screen.x} y={screen.y} rotation={screen.rotation}>
+      <Line
+        points={points.flatMap((point) => [point.x, point.y])}
+        closed
+        stroke="#32D583"
+        strokeWidth={2}
+        dash={[10, 6]}
+        listening={false}
+      />
+      {points.map((point, index) => (
+        <Circle
+          key={`${screen.id}-mask-${index}`}
+          x={point.x}
+          y={point.y}
+          radius={7}
+          fill="#050505"
+          stroke="#32D583"
+          strokeWidth={2}
+          draggable
+          onDragStart={beginTransform}
+          onDragMove={(event) => {
+            const x = Math.min(screen.width, Math.max(0, event.target.x()));
+            const y = Math.min(screen.height, Math.max(0, event.target.y()));
+            event.target.position({ x, y });
+            updatePoint(index, { x: x / screen.width, y: y / screen.height });
+          }}
+          onDragEnd={commitTransform}
+        />
+      ))}
+    </Group>
+  );
+}
+
+function MaskBorder({ screen, selected }: { screen: EditorScreen; selected: boolean }) {
+  const mask = normalizeScreenMask(screen.mask);
+
+  if (!isMaskActive(mask) || mask.type === "rectangle") {
+    return null;
+  }
+
+  return (
+    <Group x={screen.x} y={screen.y} rotation={screen.rotation} opacity={screen.opacity} listening={false}>
+      <Line
+        points={maskAbsolutePoints(mask, screen.width, screen.height).flatMap((point) => [point.x, point.y])}
+        closed
+        stroke={selected ? "#FF3030" : screen.borderColor}
+        strokeWidth={selected ? Math.max(screen.borderWidth, 4) : screen.borderWidth}
+      />
+    </Group>
+  );
+}
+
+function screenUsesPolygonMask(screen: EditorScreen) {
+  const mask = normalizeScreenMask(screen.mask);
+  return isMaskActive(mask) && mask.type !== "rectangle";
 }
 
 function StaticPatternOverlay({ screen }: { screen: EditorScreen }) {
@@ -215,10 +302,12 @@ function StaticPatternOverlay({ screen }: { screen: EditorScreen }) {
 
 function ScreenPixelOverlay({
   screen,
+  screens,
   animationTime,
   previewPlaying
 }: {
   screen: EditorScreen;
+  screens: EditorScreen[];
   animationTime: number;
   previewPlaying: boolean;
 }) {
@@ -442,6 +531,20 @@ function ScreenPixelOverlay({
         listening={false}
       />
     );
+  } else if (animation.type === "strobe-sequence" || animation.type === "strobe-random") {
+    const strobe = getStrobeAnimationState(screen, screens, animationTime);
+    if (strobe.active) {
+      elements.push(
+        <Rect
+          key="anim-strobe"
+          width={screen.width}
+          height={screen.height}
+          fill={animation.secondaryColor}
+          opacity={strobe.opacity}
+          listening={false}
+        />
+      );
+    }
   }
 
   return (
@@ -450,10 +553,7 @@ function ScreenPixelOverlay({
       y={screen.y}
       rotation={screen.rotation}
       opacity={screen.opacity}
-      clipX={0}
-      clipY={0}
-      clipWidth={screen.width}
-      clipHeight={screen.height}
+      clipFunc={maskClipFunc(screen)}
       listening={false}
     >
       {elements}
@@ -482,6 +582,7 @@ function ScreenNode({
   const selectScreen = useEditorStore((state) => state.selectScreen);
   const updateScreen = useEditorStore((state) => state.updateScreen);
   const logoImage = useHtmlImage(typeof screen.metadata.logoDataUrl === "string" ? screen.metadata.logoDataUrl : null);
+  const polygonMask = screenUsesPolygonMask(screen);
 
   if (!screen.visible) {
     return null;
@@ -498,8 +599,8 @@ function ScreenNode({
         height={screen.height}
         rotation={screen.rotation}
         fill="rgba(0,0,0,0)"
-        stroke={selected ? "#FF3030" : screen.borderColor}
-        strokeWidth={selected ? Math.max(screen.borderWidth, 4) : screen.borderWidth}
+        stroke={polygonMask ? "rgba(0,0,0,0)" : selected ? "#FF3030" : screen.borderColor}
+        strokeWidth={polygonMask ? 0 : selected ? Math.max(screen.borderWidth, 4) : screen.borderWidth}
         dash={screen.locked ? [12, 8] : undefined}
         draggable={tool === "select" && !screen.locked}
         onClick={(event) => {
@@ -560,10 +661,7 @@ function ScreenNode({
         y={screen.y}
         rotation={screen.rotation}
         opacity={screen.opacity}
-        clipX={0}
-        clipY={0}
-        clipWidth={screen.width}
-        clipHeight={screen.height}
+        clipFunc={maskClipFunc(screen)}
         listening={false}
       >
         {screen.type === "logo" && logoImage ? (
@@ -576,7 +674,9 @@ function ScreenNode({
         ) : null}
         {screen.type !== "logo" ? <ScreenLabel screen={screen} /> : null}
       </Group>
-      <ScreenPixelOverlay screen={screen} animationTime={animationTime} previewPlaying={previewPlaying} />
+      <ScreenPixelOverlay screen={screen} screens={screens} animationTime={animationTime} previewPlaying={previewPlaying} />
+      <MaskBorder screen={screen} selected={selected} />
+      {selected ? <MaskEditorHandles screen={screen} /> : null}
     </Group>
   );
 }
