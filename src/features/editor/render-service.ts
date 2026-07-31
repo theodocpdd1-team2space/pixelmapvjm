@@ -22,6 +22,11 @@ type RenderOptions = {
 };
 
 type ImageCache = Map<string, HTMLImageElement>;
+type VideoEncodeSettings = {
+  width: number;
+  height: number;
+  padded: boolean;
+};
 
 function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
@@ -424,7 +429,63 @@ export async function exportImage(
   downloadBlob(blob, `pixelmapvjm-${canvasSettings.width}x${canvasSettings.height}.${format === "png" ? "png" : "jpg"}`);
 }
 
-export async function exportWebm(
+function pickMp4MimeType() {
+  const candidates = [
+    "video/mp4;codecs=avc1.42E01E",
+    "video/mp4;codecs=avc1.4D401F",
+    "video/mp4;codecs=avc1.640028",
+    "video/mp4;codecs=h264"
+  ];
+
+  return candidates.find((mimeType) => MediaRecorder.isTypeSupported(mimeType));
+}
+
+function getSafeVideoEncodeSettings(canvasSettings: EditorCanvasSettings): VideoEncodeSettings {
+  const width = canvasSettings.width % 2 === 0 ? canvasSettings.width : canvasSettings.width + 1;
+  const height = canvasSettings.height % 2 === 0 ? canvasSettings.height : canvasSettings.height + 1;
+
+  return {
+    width,
+    height,
+    padded: width !== canvasSettings.width || height !== canvasSettings.height
+  };
+}
+
+function fillVideoBackground(ctx: CanvasRenderingContext2D, canvasSettings: EditorCanvasSettings, width: number, height: number) {
+  ctx.fillStyle = canvasSettings.backgroundTransparent ? "#000000" : canvasSettings.backgroundColor;
+  ctx.fillRect(0, 0, width, height);
+}
+
+function createVideoCanvas(canvasSettings: EditorCanvasSettings, encodeSettings: VideoEncodeSettings) {
+  const output = document.createElement("canvas");
+  output.width = encodeSettings.width;
+  output.height = encodeSettings.height;
+  const ctx = output.getContext("2d");
+
+  if (!ctx) {
+    throw new Error("Canvas 2D is not available.");
+  }
+
+  ctx.imageSmoothingEnabled = false;
+  fillVideoBackground(ctx, canvasSettings, output.width, output.height);
+  return output;
+}
+
+function drawVideoFrame(
+  output: HTMLCanvasElement,
+  frameCanvas: HTMLCanvasElement,
+  canvasSettings: EditorCanvasSettings
+) {
+  const ctx = output.getContext("2d");
+  if (!ctx) {
+    throw new Error("Canvas 2D is not available.");
+  }
+
+  fillVideoBackground(ctx, canvasSettings, output.width, output.height);
+  ctx.drawImage(frameCanvas, 0, 0);
+}
+
+export async function exportMp4(
   canvasSettings: EditorCanvasSettings,
   screens: EditorScreen[],
   onProgress: (progress: { frame: number; totalFrames: number; percent: number }) => void,
@@ -434,22 +495,19 @@ export async function exportWebm(
   const duration = Math.min(options.duration ?? canvasSettings.duration, 30);
   const totalFrames = Math.max(1, Math.round(fps * duration));
   if (!window.MediaRecorder) {
-    throw new Error("Browser belum mendukung export WebM MediaRecorder di canvas ini.");
+    throw new Error("Browser belum mendukung export MP4 di canvas ini.");
   }
 
-  const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
-    ? "video/webm;codecs=vp9"
-    : MediaRecorder.isTypeSupported("video/webm;codecs=vp8")
-      ? "video/webm;codecs=vp8"
-      : "video/webm";
-
-  if (!MediaRecorder.isTypeSupported(mimeType)) {
-    throw new Error("Browser belum mendukung export WebM MediaRecorder di canvas ini.");
+  const mimeType = pickMp4MimeType();
+  if (!mimeType) {
+    throw new Error("Browser ini belum support MP4/H.264 export. Coba Safari atau Chrome terbaru.");
   }
 
-  const output = await renderEditorFrame(canvasSettings, screens, { time: 0 });
+  const encodeSettings = getSafeVideoEncodeSettings(canvasSettings);
+  const output = createVideoCanvas(canvasSettings, encodeSettings);
+  drawVideoFrame(output, await renderEditorFrame(canvasSettings, screens, { time: 0 }), canvasSettings);
   if (!output.captureStream) {
-    throw new Error("Browser belum mendukung capture canvas untuk export WebM.");
+    throw new Error("Browser belum mendukung capture canvas untuk export MP4.");
   }
   const stream = output.captureStream(fps);
   const videoTrack = stream.getVideoTracks()[0] as CanvasCaptureMediaStreamTrack | undefined;
@@ -470,9 +528,7 @@ export async function exportWebm(
     let frame = 0;
     const tick = async () => {
       const frameCanvas = await renderEditorFrame(canvasSettings, screens, { time: frame / fps });
-      const ctx = output.getContext("2d");
-      ctx?.clearRect(0, 0, output.width, output.height);
-      ctx?.drawImage(frameCanvas, 0, 0);
+      drawVideoFrame(output, frameCanvas, canvasSettings);
       videoTrack?.requestFrame?.();
       frame += 1;
       onProgress({ frame, totalFrames, percent: Math.round((frame / totalFrames) * 100) });
@@ -489,5 +545,6 @@ export async function exportWebm(
     void tick();
   });
 
-  downloadBlob(new Blob(chunks, { type: mimeType }), `pixelmapvjm-${canvasSettings.width}x${canvasSettings.height}.webm`);
+  const safeSuffix = encodeSettings.padded ? `-safe-${encodeSettings.width}x${encodeSettings.height}` : "";
+  downloadBlob(new Blob(chunks, { type: mimeType }), `pixelmapvjm-${canvasSettings.width}x${canvasSettings.height}${safeSuffix}.mp4`);
 }

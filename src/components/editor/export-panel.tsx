@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Download, Film, ImageDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { exportImage, exportWebm } from "@/features/editor/render-service";
+import { exportImage, exportMp4 } from "@/features/editor/render-service";
 import { useEditorStore } from "@/stores/editor-store";
 
 export function ExportPanel() {
@@ -14,13 +14,13 @@ export function ExportPanel() {
   const [fps, setFps] = useState(60);
   const [duration, setDuration] = useState(Math.min(canvas.duration, 10));
 
-  async function runExport(kind: "png" | "jpeg" | "webm") {
+  async function runExport(kind: "png" | "jpeg" | "mp4") {
     setBusy(true);
-    setStatus(kind === "webm" ? "ENCODING FRAME 0000" : "RENDERING IMAGE");
+    setStatus(kind === "mp4" ? "ENCODING MP4 FRAME 0000" : "RENDERING IMAGE");
 
     try {
-      if (kind === "webm") {
-        await exportWebm(canvas, screens, ({ frame, totalFrames, percent }) => {
+      if (kind === "mp4") {
+        await exportMp4(canvas, screens, ({ frame, totalFrames, percent }) => {
           setStatus(`ENCODING FRAME ${String(frame).padStart(4, "0")} / ${String(totalFrames).padStart(4, "0")} - ${percent}%`);
         }, { fps, duration });
       } else {
@@ -70,9 +70,9 @@ export function ExportPanel() {
           />
         </label>
       </div>
-      <Button type="button" disabled={busy} variant="primary" className="w-full" onClick={() => void runExport("webm")}>
+      <Button type="button" disabled={busy} variant="primary" className="w-full" onClick={() => void runExport("mp4")}>
         <Film size={14} />
-        WEBM VIDEO
+        MP4 VIDEO
       </Button>
       <p className="border border-pf-border bg-black/25 p-2 font-mono text-[0.68rem] uppercase leading-5 text-pf-muted">
         {status}
