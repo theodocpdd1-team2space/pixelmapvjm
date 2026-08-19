@@ -60,29 +60,38 @@ export async function loginAction(_previousState: AuthActionState, formData: For
     return { error: "Email atau password tidak valid." };
   }
 
-  const fingerprint = await getRequestFingerprint(parsed.data.email);
+  let redirectPath = "/dashboard";
 
-  if (isRateLimited(fingerprint)) {
-    return { error: "Terlalu banyak percobaan login. Coba lagi beberapa menit." };
+  try {
+    const fingerprint = await getRequestFingerprint(parsed.data.email);
+
+    if (isRateLimited(fingerprint)) {
+      return { error: "Terlalu banyak percobaan login. Coba lagi beberapa menit." };
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { email: parsed.data.email.toLowerCase() }
+    });
+
+    if (!user || !user.passwordHash || !(await bcrypt.compare(parsed.data.password, user.passwordHash))) {
+      return { error: "Email, password, atau status akses tidak valid." };
+    }
+
+    if (user.accessStatus !== "ACTIVE") {
+      return { error: "Email, password, atau status akses tidak valid." };
+    }
+
+    clearRateLimit(fingerprint);
+    await trackDevice(user.id, user.email);
+    await prisma.user.update({ where: { id: user.id }, data: { lastActiveAt: new Date() } });
+    await createSession({ id: user.id, email: user.email, name: user.name, role: user.role });
+    redirectPath = isAdminUser(user) ? "/admin" : "/dashboard";
+  } catch (error) {
+    console.error("[auth] Login failed before redirect", error);
+    return { error: "Server login belum siap. Periksa konfigurasi database dan AUTH_SECRET di server." };
   }
 
-  const user = await prisma.user.findUnique({
-    where: { email: parsed.data.email.toLowerCase() }
-  });
-
-  if (!user || !user.passwordHash || !(await bcrypt.compare(parsed.data.password, user.passwordHash))) {
-    return { error: "Email, password, atau status akses tidak valid." };
-  }
-
-  if (user.accessStatus !== "ACTIVE") {
-    return { error: "Email, password, atau status akses tidak valid." };
-  }
-
-  clearRateLimit(fingerprint);
-  await trackDevice(user.id, user.email);
-  await prisma.user.update({ where: { id: user.id }, data: { lastActiveAt: new Date() } });
-  await createSession({ id: user.id, email: user.email, name: user.name, role: user.role });
-  redirect(isAdminUser(user) ? "/admin" : "/dashboard");
+  redirect(redirectPath);
 }
 
 export async function logoutAction() {
