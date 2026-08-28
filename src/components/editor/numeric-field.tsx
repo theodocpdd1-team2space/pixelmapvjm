@@ -6,6 +6,7 @@ export function NumericField({
   label,
   value,
   min,
+  max,
   step = 1,
   integer = false,
   onCommit,
@@ -14,6 +15,7 @@ export function NumericField({
   label: string;
   value: number;
   min?: number;
+  max?: number;
   step?: number;
   integer?: boolean;
   onPreview: (value: number) => void;
@@ -31,7 +33,8 @@ export function NumericField({
 
   function normalizeValue(nextValue: number) {
     const rounded = integer ? Math.round(nextValue) : nextValue;
-    return min === undefined ? rounded : Math.max(min, rounded);
+    const minBounded = min === undefined ? rounded : Math.max(min, rounded);
+    return max === undefined ? minBounded : Math.min(max, minBounded);
   }
 
   function commitDraft() {
@@ -63,6 +66,7 @@ export function NumericField({
         inputMode={integer ? "numeric" : "decimal"}
         value={draft}
         min={min}
+        max={max}
         step={step}
         type="text"
         onFocus={(event) => {

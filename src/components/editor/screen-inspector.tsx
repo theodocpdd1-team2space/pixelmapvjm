@@ -5,6 +5,7 @@ import { NumericField } from "@/components/editor/numeric-field";
 import { Button } from "@/components/ui/button";
 import { isStrobeAnimation } from "@/features/editor/animation";
 import { cabinetPresets, cabinetSettingsFromPreset } from "@/features/editor/cabinet-presets";
+import { labelSizeLimits } from "@/features/editor/color";
 import { animationColorTemplates } from "@/features/editor/color-templates";
 import { addMaskPoint, maskPresetPoints, normalizeScreenMask, removeMaskPoint } from "@/features/editor/mask";
 import { visualTemplates } from "@/features/editor/visual-templates";
@@ -93,6 +94,15 @@ export function ScreenInspector() {
     updateMask({ type: "custom", points: nextPoints });
   }
 
+  function updateTitleTextSize(value: number) {
+    updateScreen(selectedScreen.id, {
+      pattern: {
+        ...pattern,
+        labelSize: Math.min(labelSizeLimits.max, Math.max(labelSizeLimits.min, Math.round(value)))
+      }
+    });
+  }
+
   return (
     <div className="min-w-0 space-y-4">
       <label className="block space-y-2">
@@ -112,6 +122,17 @@ export function ScreenInspector() {
           }}
         />
       </label>
+      {screen.type !== "logo" ? (
+        <NumericField
+          label="Title Text Size"
+          value={pattern.labelSize}
+          min={labelSizeLimits.min}
+          max={labelSizeLimits.max}
+          integer
+          onPreview={updateTitleTextSize}
+          onCommit={() => undefined}
+        />
+      ) : null}
       <div className="grid grid-cols-2 gap-3">
         <NumericField
           label="X"
@@ -519,12 +540,12 @@ export function ScreenInspector() {
               onCommit={() => undefined}
             />
             <NumericField
-              label="Label Size"
+              label="Title Size"
               value={pattern.labelSize}
-              min={8}
-              onPreview={(value) =>
-                updateScreen(screen.id, { pattern: { ...pattern, labelSize: Math.max(8, Math.round(value)) } })
-              }
+              min={labelSizeLimits.min}
+              max={labelSizeLimits.max}
+              integer
+              onPreview={updateTitleTextSize}
               onCommit={() => undefined}
             />
           </div>

@@ -703,13 +703,14 @@ function ScreenLabel({ screen }: { screen: EditorScreen }) {
   }
 
   const fontSize = adaptiveLabelSize(pattern.labelSize, screen.width, screen.height);
-  const padding = Math.max(10, fontSize * 0.48);
+  const padding = Math.max(4, fontSize * 0.48);
   const lineHeight = fontSize * 1.22;
   const longest = Math.max(...lines.map((line) => line.length));
   const width = longest * fontSize * 0.64 + padding * 2;
   const height = lines.length * lineHeight + padding * 1.4;
   const x = (screen.width - width) / 2;
   const y = (screen.height - height) / 2;
+  const strokeWidth = Math.max(1, Math.min(2, fontSize * 0.08));
 
   return (
     <Group x={x} y={y} listening={false}>
@@ -718,7 +719,7 @@ function ScreenLabel({ screen }: { screen: EditorScreen }) {
         height={height}
         fill={colorWithAlpha(pattern.labelBackgroundColor, pattern.labelBackgroundOpacity)}
         stroke={pattern.primaryColor}
-        strokeWidth={2}
+        strokeWidth={strokeWidth}
         listening={false}
       />
       {lines.map((line, index) => (

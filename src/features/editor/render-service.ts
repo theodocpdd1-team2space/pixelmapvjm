@@ -320,17 +320,18 @@ function drawLabel(ctx: CanvasRenderingContext2D, screen: EditorScreen) {
   }
 
   const fontSize = adaptiveLabelSize(pattern.labelSize, screen.width, screen.height);
-  const padding = Math.max(10, fontSize * 0.48);
+  const padding = Math.max(4, fontSize * 0.48);
   const lineHeight = fontSize * 1.22;
   ctx.font = `700 ${fontSize}px "JetBrains Mono", monospace`;
   const width = Math.max(...lines.map((line) => ctx.measureText(line).width)) + padding * 2;
   const height = lines.length * lineHeight + padding * 1.4;
   const x = (screen.width - width) / 2;
   const y = (screen.height - height) / 2;
+  const strokeWidth = Math.max(1, Math.min(2, fontSize * 0.08));
 
   ctx.fillStyle = colorWithAlpha(pattern.labelBackgroundColor, pattern.labelBackgroundOpacity);
   ctx.strokeStyle = pattern.primaryColor;
-  ctx.lineWidth = 2;
+  ctx.lineWidth = strokeWidth;
   ctx.fillRect(x, y, width, height);
   ctx.strokeRect(x, y, width, height);
   ctx.fillStyle = pattern.labelTextColor;

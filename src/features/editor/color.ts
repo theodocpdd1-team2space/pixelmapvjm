@@ -29,11 +29,18 @@ export const animationRenderConstants = {
   blinkOpacity: 0.42
 };
 
+export const labelSizeLimits = {
+  min: 4,
+  max: 96,
+  fallback: 28
+};
+
 export function pulseAnimationOpacity(time: number, speed: number) {
   return 0.5 + Math.sin(time * speed * Math.PI * 2) * 0.2;
 }
 
 export function adaptiveLabelSize(requestedSize: number, width: number, height: number) {
-  const automaticSize = Math.min(72, Math.max(28, Math.round(Math.min(width, height) * 0.056)));
-  return Math.max(requestedSize, automaticSize);
+  const screenBoundedMax = Math.max(labelSizeLimits.min, Math.min(labelSizeLimits.max, Math.round(Math.min(width, height) * 0.18)));
+  const requested = Number.isFinite(requestedSize) && requestedSize > 0 ? requestedSize : labelSizeLimits.fallback;
+  return Math.min(screenBoundedMax, Math.max(labelSizeLimits.min, Math.round(requested)));
 }
