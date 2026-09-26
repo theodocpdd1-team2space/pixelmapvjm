@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { ResolumePanel } from "./resolume-panel";
+import { VisualLibrary } from "./visual-library";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { LayersList } from "@/components/editor/layers-list";
 import { ExportPanel } from "@/components/editor/export-panel";
@@ -242,6 +244,9 @@ export function EditorSidebar({
             </div>
           </div>
         </section>
+
+        <section><SectionHeading code="VJ" title="Style Library" /><div className="mt-4"><VisualLibrary /></div></section>
+        <section><SectionHeading code="IO" title="Resolume Slices" /><div className="mt-4"><ResolumePanel key={pageId} /></div></section>
 
         <section>
           <SectionHeading code="05" title="Screen" />

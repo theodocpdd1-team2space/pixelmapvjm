@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<XmlState name="Stage"><ScreenSetup name="ScreenSetup"><CurrentCompositionTextureSize width="1920" height="1080"/><screens>
+<Screen name="Processor A" uniqueId="10"><Params name="Params"><Param name="Enabled" value="1"/></Params><layers>
+<Slice uniqueId="11"><Params name="Common"><Param name="Name" value="MAIN &amp; STAGE"/><Param name="Enabled" value="1"/></Params><InputRect><v x="320" y="0"/><v x="1600" y="0"/><v x="1600" y="720"/><v x="320" y="720"/></InputRect><OutputRect><v x="0" y="0"/><v x="1280" y="0"/><v x="1280" y="720"/><v x="0" y="720"/></OutputRect></Slice>
+<Slice uniqueId="12"><Params name="Common"><Param name="Name" value="LEFT"/></Params><InputRect><v x="0" y="0"/><v x="256" y="0"/><v x="256" y="720"/><v x="0" y="720"/></InputRect></Slice>
+<Slice uniqueId="13"><Params name="Common"><Param name="Name" value="RIGHT"/><Param name="Enabled" value="0"/></Params><InputRect><v x="1664" y="0"/><v x="1920" y="0"/><v x="1920" y="720"/><v x="1664" y="720"/></InputRect></Slice>
+</layers></Screen>
+<Screen name="Processor B" uniqueId="20"><layers><Slice uniqueId="11"><Params name="Common"><Param name="Name" value="DJ BOOTH"/></Params><InputRect><v x="320" y="768"/><v x="1600" y="768"/><v x="1600" y="1024"/><v x="320" y="1024"/></InputRect></Slice></layers></Screen>
+</screens></ScreenSetup></XmlState>

@@ -23,6 +23,7 @@ export function ExportPanel() {
         await exportMp4(canvas, screens, ({ frame, totalFrames, percent }) => {
           setStatus(`ENCODING FRAME ${String(frame).padStart(4, "0")} / ${String(totalFrames).padStart(4, "0")} - ${percent}%`);
         }, { fps, duration });
+        setStatus("MP4 EXPORTED");
       } else {
         await exportImage(canvas, screens, kind);
         setStatus(`${kind.toUpperCase()} EXPORTED`);

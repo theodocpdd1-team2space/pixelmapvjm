@@ -51,6 +51,11 @@ const animationSchema = z.object({
   type: z
     .enum([
       "none",
+      "wire-tunnel",
+      "neon-flow",
+      "digital-glitch",
+      "slice-chase",
+      "slice-bounce",
       "gradient-wipe",
       "horizontal-wipe",
       "vertical-wipe",
@@ -70,8 +75,14 @@ const animationSchema = z.object({
 });
 
 const patternSchema = z.object({
+  accentColor: z.string().default("#FFE600"),
+  badgeText: z.string().max(8).default("E"),
+  showCellLabels: z.boolean().default(false),
   type: z
     .enum([
+      "festival-card",
+      "badge-card",
+      "coordinate-card",
       "mapper-calibration",
       "calibration",
       "solid",
@@ -119,6 +130,9 @@ const patternSchema = z.object({
 });
 
 const defaultPatternSchemaValue = {
+  accentColor: "#FFE600",
+  badgeText: "E",
+  showCellLabels: false,
   type: "mapper-calibration" as const,
   mode: "global" as const,
   primaryColor: "#FF3030",

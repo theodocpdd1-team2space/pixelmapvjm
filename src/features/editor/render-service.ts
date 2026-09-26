@@ -5,6 +5,7 @@ import type {
   EditorScreen,
   ScreenPatternSettings
 } from "@/features/editor/types";
+import { drawStageCard, drawStageEffect, drawStageLabel, stageCardTypes, stageEffectTypes } from "./stage-visuals";
 import { getStrobeAnimationState } from "@/features/editor/animation";
 import {
   adaptiveLabelSize,
@@ -19,6 +20,8 @@ import { defaultScreenPattern } from "@/features/editor/types";
 type RenderOptions = {
   time?: number;
   includeLabels?: boolean;
+  output?: HTMLCanvasElement;
+  imageCache?: ImageCache;
 };
 
 type ImageCache = Map<string, HTMLImageElement>;
@@ -100,12 +103,12 @@ function drawCabinetGrid(ctx: CanvasRenderingContext2D, screen: EditorScreen, pa
   ctx.globalAlpha = baseAlpha;
 }
 
-function drawPattern(
+export function drawPattern(
   ctx: CanvasRenderingContext2D,
   screen: EditorScreen,
   canvas: EditorCanvasSettings,
   screens: EditorScreen[],
-  time: number
+  time?: number
 ) {
   const pattern = { ...defaultScreenPattern, ...(screen.pattern as Partial<ScreenPatternSettings>) };
   const calibration = pattern.type === "mapper-calibration" || pattern.type === "calibration";
@@ -118,7 +121,9 @@ function drawPattern(
   ctx.fillStyle = pattern.backgroundColor;
   ctx.fillRect(0, 0, screen.width, screen.height);
 
-  if (pattern.type === "solid") {
+  if (stageCardTypes.includes(pattern.type)) {
+    drawStageCard(ctx, screen, pattern);
+    if (time !== undefined) drawAnimation(ctx, screen, screens, time);
     return;
   }
 
@@ -133,13 +138,11 @@ function drawPattern(
   if (pattern.type === "checkerboard" || calibration) {
     for (let y = startY; y < screen.height; y += grid) {
       for (let x = startX; x < screen.width; x += grid) {
-        if ((Math.floor((x + globalOffsetX) / grid) + Math.floor((y + globalOffsetY) / grid)) % 2 === 0) {
-          ctx.fillStyle =
-            pattern.type === "checkerboard"
-              ? (Math.floor((x + globalOffsetX) / grid) + Math.floor((y + globalOffsetY) / grid)) % 4 === 0
-                ? pattern.primaryColor
-                : pattern.secondaryColor
-              : colorWithAlpha(pattern.secondaryColor, patternRenderConstants.calibrationCheckerAlpha);
+        const parity = (Math.floor((x + globalOffsetX) / grid) + Math.floor((y + globalOffsetY) / grid)) % 2;
+        if (pattern.type === "checkerboard" || parity === 0) {
+          ctx.fillStyle = pattern.type === "checkerboard"
+            ? parity === 0 ? pattern.primaryColor : pattern.secondaryColor
+            : colorWithAlpha(pattern.secondaryColor, patternRenderConstants.calibrationCheckerAlpha);
           ctx.fillRect(x, y, grid, grid);
         }
       }
@@ -157,7 +160,7 @@ function drawPattern(
     }
   }
 
-  if (pattern.type === "diagonal-lines" || calibration) {
+  if (pattern.type === "diagonal-lines" || (calibration && pattern.showDiagonal)) {
     ctx.strokeStyle = pattern.primaryColor;
     ctx.lineWidth = calibration ? pattern.lineThickness : pattern.lineWidth;
     drawLine(ctx, [0, 0, screen.width, screen.height]);
@@ -202,12 +205,17 @@ function drawPattern(
     }
   }
 
-  drawAnimation(ctx, screen, screens, time);
+  if (time !== undefined) drawAnimation(ctx, screen, screens, time);
 }
 
 function drawAnimation(ctx: CanvasRenderingContext2D, screen: EditorScreen, screens: EditorScreen[], time: number) {
   const animation = screen.animation;
   if (animation.type === "none") {
+    return;
+  }
+
+  if (stageEffectTypes.includes(animation.type)) {
+    drawStageEffect(ctx, screen, screens, time);
     return;
   }
 
@@ -307,8 +315,9 @@ function drawAnimation(ctx: CanvasRenderingContext2D, screen: EditorScreen, scre
   ctx.restore();
 }
 
-function drawLabel(ctx: CanvasRenderingContext2D, screen: EditorScreen) {
+export function drawLabel(ctx: CanvasRenderingContext2D, screen: EditorScreen) {
   const pattern = { ...defaultScreenPattern, ...(screen.pattern as Partial<ScreenPatternSettings>) };
+  if (stageCardTypes.includes(pattern.type)) { drawStageLabel(ctx, screen); return; }
   const lines = [
     pattern.showScreenName ? screen.name : "",
     pattern.showSize || pattern.showResolution ? `SIZE: ${Math.round(screen.width)} x ${Math.round(screen.height)}` : "",
@@ -345,16 +354,16 @@ export async function renderEditorFrame(
   screens: EditorScreen[],
   options: RenderOptions = {}
 ) {
-  const output = document.createElement("canvas");
-  output.width = canvasSettings.width;
-  output.height = canvasSettings.height;
+  const output = options.output ?? document.createElement("canvas");
+  if (output.width !== canvasSettings.width) output.width = canvasSettings.width;
+  if (output.height !== canvasSettings.height) output.height = canvasSettings.height;
   const ctx = output.getContext("2d");
 
   if (!ctx) {
     throw new Error("Canvas 2D is not available.");
   }
 
-  const imageCache = await buildImageCache(screens);
+  const imageCache = options.imageCache ?? await buildImageCache(screens);
   ctx.imageSmoothingEnabled = false;
   ctx.clearRect(0, 0, output.width, output.height);
   if (!canvasSettings.backgroundTransparent) {
@@ -381,30 +390,33 @@ export async function renderEditorFrame(
           ctx.drawImage(logo, 0, 0, screen.width, screen.height);
         }
       } else {
-        drawPattern(ctx, screen, canvasSettings, screens, options.time ?? 0);
+        drawPattern(ctx, screen, canvasSettings, screens, options.time);
       }
 
-      if (screen.type !== "logo" && logo) {
-        ctx.drawImage(logo, 0, 0, screen.width, screen.height);
+      if (screen.type !== "logo" && logo && screen.pattern.showLogo) {
+        ctx.drawImage(logo, screen.width * 0.36, screen.height * 0.28, screen.width * 0.28, screen.height * 0.44);
       }
 
-      if (screen.type !== "logo") {
+      if (screen.type !== "logo" && options.includeLabels !== false) {
         drawLabel(ctx, screen);
       }
       ctx.restore();
 
-      ctx.save();
-      ctx.translate(screen.x, screen.y);
-      ctx.rotate((screen.rotation * Math.PI) / 180);
-      ctx.strokeStyle = screen.borderColor;
-      ctx.lineWidth = screen.borderWidth;
-      if (isMaskActive(normalizeScreenMask(screen.mask))) {
-        drawMaskPath(ctx, normalizeScreenMask(screen.mask), screen.width, screen.height);
-        ctx.stroke();
-      } else {
-        ctx.strokeRect(0, 0, screen.width, screen.height);
+      if (screen.borderWidth > 0) {
+        ctx.save();
+        ctx.translate(screen.x, screen.y);
+        ctx.rotate((screen.rotation * Math.PI) / 180);
+        ctx.globalAlpha = screen.opacity;
+        ctx.strokeStyle = screen.borderColor;
+        ctx.lineWidth = screen.borderWidth;
+        if (isMaskActive(normalizeScreenMask(screen.mask))) {
+          drawMaskPath(ctx, normalizeScreenMask(screen.mask), screen.width, screen.height);
+          ctx.stroke();
+        } else {
+          ctx.strokeRect(0, 0, screen.width, screen.height);
+        }
+        ctx.restore();
       }
-      ctx.restore();
     });
 
   return output;
@@ -418,7 +430,7 @@ export async function exportImage(
   const output = await renderEditorFrame(
     format === "jpeg" ? { ...canvasSettings, backgroundTransparent: false } : canvasSettings,
     screens,
-    { time: 0 }
+    {}
   );
   if (output.width !== canvasSettings.width || output.height !== canvasSettings.height) {
     throw new Error("Image output resolution does not match composition.");
@@ -506,45 +518,50 @@ export async function exportMp4(
 
   const encodeSettings = getSafeVideoEncodeSettings(canvasSettings);
   const output = createVideoCanvas(canvasSettings, encodeSettings);
-  drawVideoFrame(output, await renderEditorFrame(canvasSettings, screens, { time: 0 }), canvasSettings);
-  if (!output.captureStream) {
-    throw new Error("Browser belum mendukung capture canvas untuk export MP4.");
-  }
+  const imageCache = await buildImageCache(screens);
+  const frameCanvas = await renderEditorFrame(canvasSettings, screens, { time: 0, imageCache });
+  drawVideoFrame(output, frameCanvas, canvasSettings);
+  if (!output.captureStream) throw new Error("Browser belum mendukung capture canvas untuk export MP4.");
   const stream = output.captureStream(fps);
-  const videoTrack = stream.getVideoTracks()[0] as CanvasCaptureMediaStreamTrack | undefined;
-  const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 12_000_000 });
   const chunks: BlobPart[] = [];
-
-  recorder.ondataavailable = (event) => {
-    if (event.data.size > 0) {
-      chunks.push(event.data);
-    }
-  };
-
-  await new Promise<void>((resolve, reject) => {
-    recorder.onerror = () => reject(new Error("Video encoder failed."));
-    recorder.onstop = () => resolve();
-    recorder.start();
-
-    let frame = 0;
-    const tick = async () => {
-      const frameCanvas = await renderEditorFrame(canvasSettings, screens, { time: frame / fps });
-      drawVideoFrame(output, frameCanvas, canvasSettings);
-      videoTrack?.requestFrame?.();
-      frame += 1;
-      onProgress({ frame, totalFrames, percent: Math.round((frame / totalFrames) * 100) });
-
-      if (frame >= totalFrames) {
-        recorder.stop();
-        stream.getTracks().forEach((track) => track.stop());
-        return;
-      }
-
-      window.setTimeout(tick, 1000 / fps);
-    };
-
-    void tick();
-  });
+  let timer: number | undefined;
+  try {
+    const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 12_000_000 });
+    recorder.ondataavailable = event => { if (event.data.size > 0) chunks.push(event.data); };
+    await new Promise<void>((resolve, reject) => {
+      let failed = false;
+      const fail = (error: unknown) => {
+        failed = true;
+        window.clearTimeout(timer);
+        if (recorder.state !== "inactive") recorder.stop();
+        reject(error instanceof Error ? error : new Error("Video encoder failed."));
+      };
+      recorder.onerror = () => fail(new Error("Video encoder failed."));
+      recorder.onstop = () => { if (!failed) resolve(); };
+      recorder.start();
+      const started = performance.now();
+      const tick = async () => {
+        try {
+          // Follow elapsed recording time so slow frames don't extend the clip duration.
+          const elapsed = (performance.now() - started) / 1000;
+          if (elapsed >= duration) { recorder.stop(); return; }
+          const frame = Math.min(totalFrames - 1, Math.floor(elapsed * fps));
+          await renderEditorFrame(canvasSettings, screens, { time: frame / fps, imageCache, output: frameCanvas });
+          if (failed) return;
+          drawVideoFrame(output, frameCanvas, canvasSettings);
+          onProgress({ frame: frame + 1, totalFrames, percent: Math.round((frame + 1) / totalFrames * 100) });
+          const next = (frame + 1) / fps * 1000 - (performance.now() - started);
+          timer = window.setTimeout(() => void tick(), Math.max(0, next));
+        } catch (error) { fail(error); }
+      };
+      void tick();
+    });
+  } finally {
+    window.clearTimeout(timer);
+    stream.getTracks().forEach(track => track.stop());
+  }
+  if (!chunks.length) throw new Error("Video encoder returned an empty file.");
+  onProgress({ frame: totalFrames, totalFrames, percent: 100 });
 
   const safeSuffix = encodeSettings.padded ? `-safe-${encodeSettings.width}x${encodeSettings.height}` : "";
   downloadBlob(new Blob(chunks, { type: mimeType }), `pixelmapvjm-${canvasSettings.width}x${canvasSettings.height}${safeSuffix}.mp4`);

@@ -38,6 +38,9 @@ export type EditorScreen = {
 };
 
 export type StaticPatternType =
+  | "festival-card"
+  | "badge-card"
+  | "coordinate-card"
   | "mapper-calibration"
   | "calibration"
   | "solid"
@@ -78,6 +81,9 @@ export type ScreenPatternSettings = {
   mode: PatternMode;
   primaryColor: string;
   secondaryColor: string;
+  accentColor: string;
+  badgeText: string;
+  showCellLabels: boolean;
   backgroundColor: string;
   gridColor: string;
   moduleGridColor: string;
@@ -110,6 +116,9 @@ export type ScreenPatternSettings = {
 };
 
 export const defaultScreenPattern: ScreenPatternSettings = {
+  accentColor: "#FFE600",
+  badgeText: "E",
+  showCellLabels: false,
   type: "mapper-calibration",
   mode: "global",
   primaryColor: "#FF3030",
@@ -179,6 +188,11 @@ export type CabinetSettings = {
 
 export type AnimationType =
   | "none"
+  | "wire-tunnel"
+  | "neon-flow"
+  | "digital-glitch"
+  | "slice-chase"
+  | "slice-bounce"
   | "gradient-wipe"
   | "horizontal-wipe"
   | "vertical-wipe"

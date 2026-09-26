@@ -1,0 +1,85 @@
+# Audit editor dan panduan Resolume — 26 September 2026
+
+## Fitur yang ditambahkan
+
+- Style Library: Festival Magenta/Lime, Acid Green/Blue, Cyan/Coral, LED Hex Badge Solar/Orange/Red, Coordinate Violet/Yellow, Electric Blue/Red.
+- Warna primary, secondary, accent, garis, latar, dan label dapat diubah di Screen → Test Pattern. Teks badge, label A1–AA1, koordinat sudut, ukuran sel, lingkaran, diagonal, dan crosshair dapat disesuaikan.
+- Terapkan preset ke seluruh screen atau selection. **Apply Test Card to All** menyalin penyesuaian test card dan mempertahankan teks badge setiap screen.
+- Efek procedural: Wire Tunnel, Neon Flow, Digital Glitch, Slice Chase, Slice Bounce. Warna, kecepatan, dan arah tersedia di inspector. Chase memakai urutan spasial dan clock dari slice pertama menurut arah terpilih; gunakan **Apply Animation to All** untuk menyeragamkan setelan.
+- Preset video menyembunyikan label/grid dan memulai preview. Menggunakan preset test card menghentikan preview. Mengganti efek lewat inspector tetap mempertahankan label yang dipilih.
+- Pola, warna, animasi, dan metadata slice tersimpan dalam format proyek lokal/cloud yang sama; dokumen lama memakai default untuk properti baru.
+
+## Dua arah workflow
+
+### Layout dibuat di Resolume
+
+1. Advanced Output → Save & Close. Dari dropdown preset, gunakan Reveal in Finder/Explorer untuk menemukan XML.
+2. Di PixelMapVJM, buka **Resolume Slices → Import XML**. `ScreenSetup` langsung maupun preset pembungkus `XmlState` didukung.
+3. Slice memakai koordinat **Input Selection**, bukan Output Transformation. Ukuran canvas mengikuti `CurrentCompositionTextureSize` jika opsi ukuran aktif; jika tidak ada, dihitung dari batas slice.
+4. Atur style/efek, ekspor PNG untuk test card atau MP4 untuk video. Masukkan konten ke composition Resolume dengan resolusi yang sama agar sampling slice tepat. Jangan stretch atau fit ke rasio lain.
+5. **Link XML** memakai file picker browser dan membaca file tersebut setiap 2 detik selama panel terbuka. Setelah Save & Close di Resolume, geometri/nama/status slice diperbarui; warna/efek/ID editor dipertahankan. Slice manual tetap ada, slice eksternal yang dihapus ikut dihapus. Perubahan masuk undo history.
+6. Stop Auto Sync sebelum melakukan undo yang ingin dipertahankan. File yang tidak berubah tidak menghasilkan history baru.
+
+Link memerlukan browser yang mendukung `showOpenFilePicker` pada secure context (HTTPS/localhost). Browser lain tetap bisa Import XML ulang. Jika Resolume mengganti file secara atomik dan handle lama tidak berlaku lagi, pilih Link XML ulang. Sinkronisasi berhenti jika panel ditutup, halaman berpindah, atau file tidak bisa dibaca. Ini bukan koneksi langsung ke proses/API Resolume.
+
+### Layout dibuat di PixelMapVJM
+
+1. Buat rectangle screen, atur nama/posisi/resolusi, lalu **Export New Layout XML**.
+2. Load file hasilnya sebagai preset Advanced Output di Resolume. Hasilnya satu virtual output dengan input = output pada ukuran canvas. Pilih output fisik di Resolume.
+3. Ekspor PNG/MP4 terpisah dan load sebagai konten composition.
+
+XML baru hanya berisi geometri/nama slice rectangle yang terlihat; logo tidak menjadi slice. Warna, test card, dan efek berada dalam PNG/MP4, bukan file XML. Preset perangkat, routing, warp, blending, dan output asli tidak ditimpa ataupun direkonstruksi. Polygon mask harus menggunakan PNG/MP4 pada slice asli; exporter menolak polygon daripada merusak bentuk secara diam-diam. Kompatibilitas XML diuji dengan parser dan fixture; belum diuji langsung di aplikasi Resolume pengguna.
+
+## Batas impor/render
+
+- Maksimum 10 MB dan 512 slice; XML rusak, DTD/entity, serta koordinat tidak valid ditolak. Slice tanpa geometri valid dilewati dengan catatan, kecuali tidak ada slice valid sama sekali.
+- Quad input non-persegi menjadi polygon mask. Orientasi tekstur, input mask tambahan, Bezier warp, soft edge, layer/group routing, dan color correction Resolume tidak direproduksi. Status/kelemahan impor ditampilkan di panel.
+- Koordinat negatif atau slice di luar canvas tetap dicatat dan diperingatkan; area luar tidak muncul di ekspor.
+- Physical dimensions pada Coordinate Card dihitung dari ukuran kabinet yang diatur pengguna, bukan ditebak dari XML.
+- MP4 memakai MediaRecorder/H.264 browser dan waktu perekaman nyata. FPS aktual tergantung kemampuan komputer; ketika render lambat, frame dapat terlewat tanpa memperpanjang klip. Resolusi ganjil diberi padding satu piksel untuk encoder. Background transparan menjadi hitam pada MP4.
+- Efek adalah generator visual asli, bukan rekaman footage berlisensi atau plugin FFGL/Wire.
+
+## Temuan yang diperbaiki
+
+| Temuan | Perbaikan |
+| --- | --- |
+| Renderer Konva dan ekspor berbeda sehingga label, masking, dan fitur baru berpotensi tidak cocok | Canvas preview dan ekspor memakai fungsi gambar yang sama |
+| Pola solid keluar sebelum menjalankan animasi | Efek solid sekarang dirender |
+| Gambar statis menampilkan overlay animasi pada detik nol | Render statis tidak menjalankan animasi |
+| `showDiagonal` diabaikan pada calibration | Toggle kini dihormati |
+| Checkerboard mengisi sebagian sel dan mencampur background sebagai warna ketiga | Semua sel bergantian antara dua warna yang dipilih |
+| `includeLabels` ekspor diabaikan | Opsi dipakai saat menggambar label |
+| Logo overlay di ekspor berbeda posisi dan mengabaikan toggle | Posisi/toggle sama dengan preview |
+| MP4 membuat canvas dan memuat ulang logo per frame, menambah waktu render ke durasi dan dapat menggantung saat gagal | Canvas/image cache dipakai ulang; clock mengikuti elapsed time; error dan cleanup recorder/track ditangani |
+| Schema proyek tidak mengenali pola/efek baru | Enum dan default schema diperbarui |
+
+## Audit dependensi terpisah
+
+`npm audit` pada 26 September 2026 melaporkan **11 temuan: 1 critical, 10 high**. Paket langsung yang terlibat: Next.js dan Prisma; sisanya dependency transitif. Severity berasal dari registry, bukan bukti bahwa semua jalur eksploitasi berlaku pada deployment ini.
+
+- Next.js 16.2.12: registry menyarankan 16.3.6, termasuk advisory [AVIF image optimization](https://github.com/advisories/GHSA-2xp9-vwfh-vxw4) dan [Windows hosting](https://github.com/advisories/GHSA-p293-qw3h-jr36).
+- Prisma: saran otomatis registry adalah turun major ke 6.19.3; jangan menggunakan `npm audit fix --force` tanpa verifikasi kompatibilitas Prisma 7 dan adapter PostgreSQL proyek ini.
+- Transitif: brace-expansion, deepmerge-ts, fast-uri, js-yaml, mysql2, nanoid, postcss, sharp, @prisma/config.
+
+Perubahan ini tidak mengupgrade framework/database. Temuan perlu ditangani sebelum deployment produksi berikutnya dengan regresi autentikasi, database, dan image pipeline.
+
+## Referensi desain dan format
+
+- [Resolume Advanced Output](https://resolume.com/support/advanced-output): preset XML dan workflow berbagi layout.
+- [Resolume Input Selection](https://resolume.com/support/en/input-selection): slice, input geometry, mask.
+- [Chaser File Menu](https://hybridconstructs.com/support/chaser/file-menu/): pembaruan Advanced Output setelah Save & Close.
+- [Katalog style Resolume](https://resolume.com/footage/styles), [WireTunnel](https://www.resolume.com/footage/WireTunnel), [GlitchRhythm](https://resolume.com/footage/glitchrhythm): referensi genre neon, tunnel, glitch yang tersedia di katalog saat audit. Ini bukan klaim ranking/tren berdasarkan statistik.
+- [Contoh preset Arena](https://github.com/stoatworks-labs/test-card/blob/main/test/fixtures/resolume-arena-preset.xml): verifikasi struktur `Params`, `InputRect/v`, dan `OutputDeviceVirtual`. Fixture pengujian proyek dibuat sendiri.
+
+## Verifikasi
+
+```sh
+npm ci
+npx playwright install chromium
+npm run test:editor
+npm run typecheck
+npm run lint
+npm run build
+```
+
+Suite browser menguji parser valid/invalid, multi-output, visibility, polygon, identitas slice, pelestarian style ketika sync, undo/redo, XML round trip, schema persistence, chase, animasi pada solid, ekspor statis, kontrol React, download XML dan perekaman MP4. Screenshot QA dan MP4 contoh ditulis ke folder temp `pixelmap-qa`.

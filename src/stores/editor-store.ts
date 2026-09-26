@@ -17,6 +17,8 @@ import { defaultCabinetSettings } from "@/features/editor/cabinet-presets";
 import { normalizeScreenMask } from "@/features/editor/mask";
 import { defaultScreenPattern } from "@/features/editor/types";
 
+import { mergeResolumeScreens, type ResolumeImport } from "@/features/editor/resolume";
+
 const HISTORY_LIMIT = 100;
 const defaultAnimationSettings: ScreenAnimationSettings = {
   type: "gradient-wipe",
@@ -60,6 +62,7 @@ type EditorStore = {
   toggleGrid: () => void;
   toggleSnap: () => void;
   togglePreview: () => void;
+  syncResolume: (imported: ResolumeImport, resize: boolean) => void;
   addRectangle: () => void;
   addCabinetArray: (cabinet: Parameters<typeof createCabinetScreen>[2]) => void;
   addLogo: (payload: { dataUrl: string; fileName: string; naturalWidth: number; naturalHeight: number }) => void;
@@ -272,6 +275,19 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       saveStatus: "EDITING"
     })),
   togglePreview: () => set((state) => ({ previewPlaying: !state.previewPlaying })),
+
+  syncResolume: (imported, resize) => {
+    get().pushHistory();
+    set(state => {
+      const screens = mergeResolumeScreens(state.screens, imported);
+      return {
+        screens,
+        selectedIds: state.selectedIds.filter(id => screens.some(screen => screen.id === id)),
+        saveStatus: "EDITING"
+      };
+    });
+    if (resize) get().updateCanvas({ width: imported.width, height: imported.height });
+  },
 
   addRectangle: () => {
     get().pushHistory();

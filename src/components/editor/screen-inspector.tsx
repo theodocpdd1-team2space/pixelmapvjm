@@ -479,6 +479,9 @@ export function ScreenInspector() {
                 })
               }
             >
+              <option value="festival-card">Festival Test Card</option>
+              <option value="badge-card">LED Hex Badge</option>
+              <option value="coordinate-card">Coordinate Grid</option>
               <option value="mapper-calibration">Mapper Calibration</option>
               <option value="calibration">Calibration Card</option>
               <option value="grid">Grid</option>
@@ -511,6 +514,7 @@ export function ScreenInspector() {
               ["BG", "backgroundColor"],
               ["Primary", "primaryColor"],
               ["Secondary", "secondaryColor"],
+              ["Accent", "accentColor"],
               ["Grid", "gridColor"],
               ["Cabinet", "cabinetGridColor"],
               ["Module", "moduleGridColor"],
@@ -523,7 +527,7 @@ export function ScreenInspector() {
                 <input
                   className="h-9 w-full border border-pf-border bg-black"
                   type="color"
-                  value={pattern[key]}
+                  value={String(pattern[key])}
                   onChange={(event) => updateScreen(screen.id, { pattern: { ...pattern, [key]: event.target.value } })}
                 />
               </label>
@@ -555,8 +559,17 @@ export function ScreenInspector() {
             <NumericField label="Circle Count" value={pattern.circleCount} min={1} onPreview={(value) => updateScreen(screen.id, { pattern: { ...pattern, circleCount: Math.min(20, Math.max(1, Math.round(value))) } })} onCommit={() => undefined} />
             <NumericField label="Label Opacity" value={pattern.labelBackgroundOpacity} min={0} step={0.05} onPreview={(value) => updateScreen(screen.id, { pattern: { ...pattern, labelBackgroundOpacity: Math.min(1, Math.max(0, value)) } })} onCommit={() => undefined} />
           </div>
+          <Button className="w-full" onClick={() => {
+            beginTransform();
+            screens.filter(item => item.type !== "logo").forEach(item => updateScreen(item.id, {
+              pattern: { ...pattern, badgeText: String(item.pattern.badgeText ?? pattern.badgeText) }
+            }));
+            commitTransform();
+          }}>APPLY TEST CARD TO ALL</Button>
+          <label className="block space-y-1"><span className="technical-label">Center Badge Text</span><input className="technical-input" maxLength={8} value={pattern.badgeText} onFocus={beginTransform} onChange={(event) => updateScreen(screen.id, { pattern: { ...pattern, badgeText: event.target.value } })} onBlur={commitTransform} /></label>
           <div className="grid grid-cols-2 gap-2 font-mono text-[0.68rem] uppercase text-pf-muted">
             {[
+              ["Cell A1", "showCellLabels"],
               ["Name", "showScreenName"],
               ["Res", "showResolution"],
               ["XY", "showCoordinates"],
@@ -586,7 +599,7 @@ export function ScreenInspector() {
         </div>
       ) : null}
       <div className="space-y-3 border border-pf-border bg-black/20 p-3">
-        <p className="font-mono text-xs uppercase text-pf-red">Color & Wiper</p>
+        <p className="font-mono text-xs uppercase text-pf-red">Video Effects & Colors</p>
         <label className="block space-y-2">
           <span className="technical-label">Color Template</span>
           <select
@@ -681,6 +694,11 @@ export function ScreenInspector() {
             }
           >
             <option value="none">None</option>
+            <option value="wire-tunnel">Wire Tunnel</option>
+            <option value="neon-flow">Neon Flow</option>
+            <option value="digital-glitch">Digital Glitch</option>
+            <option value="slice-chase">Slice Chase</option>
+            <option value="slice-bounce">Slice Bounce</option>
             <option value="gradient-wipe">Smooth Gradient Wipe</option>
             <option value="horizontal-wipe">Horizontal Wipe</option>
             <option value="vertical-wipe">Vertical Wipe</option>

@@ -156,3 +156,27 @@ export const visualTemplates: VisualTemplate[] = [
     animation: { type: "gradient-wipe", primaryColor: "#FFFFFF", secondaryColor: "#2B68FF", speed: 0.9, direction: "left-to-right" }
   }
 ];
+
+// Original procedural styles inspired by stage calibration cards.
+const stagePalettes = [
+  { id: "festival-magenta", label: "Festival • Magenta / Lime", type: "festival-card" as const, colors: ["#F000BD", "#92006F", "#BCFF00"] },
+  { id: "festival-green", label: "Festival • Acid Green / Blue", type: "festival-card" as const, colors: ["#50F500", "#169B00", "#254BFF"] },
+  { id: "festival-cyan", label: "Festival • Cyan / Coral", type: "festival-card" as const, colors: ["#00B8DD", "#007593", "#FF615B"] },
+  { id: "led-badge", label: "LED Badge • Solar / Orange / Red", type: "badge-card" as const, colors: ["#FFE600", "#FF8000", "#EF101C"] },
+  { id: "coordinate-violet", label: "Coordinate • Violet / Yellow", type: "coordinate-card" as const, colors: ["#351A91", "#F5EF00", "#FFFFFF"] },
+  { id: "festival-blue", label: "Festival • Electric Blue / Red", type: "festival-card" as const, colors: ["#1528EC", "#09157F", "#FF3030"] }
+];
+
+visualTemplates.push(...stagePalettes.map(({ id, label, type, colors }) => ({
+  id, label, fillColor: "#050505", borderColor: colors[2],
+  pattern: {
+    type, mode: "local" as const, primaryColor: colors[0], secondaryColor: colors[1], accentColor: colors[2],
+    gridColor: "#FFFFFF", gridSize: 108, lineWidth: 1, lineThickness: 2, edgeThickness: 4,
+    circleCount: 3, showCircle: true, showDiagonal: true, showCenterCrosshair: true,
+    showCellLabels: type === "coordinate-card", showScreenIndex: type !== "coordinate-card",
+    showCoordinates: type === "coordinate-card", showPosition: false, showScreenName: true,
+    showResolution: true, showSize: true, showCabinetInfo: type === "coordinate-card", badgeText: "E",
+    labelBackgroundColor: "#08090B", labelTextColor: "#FFFFFF", labelBackgroundOpacity: 0.9
+  },
+  animation: { type: "none" as const, primaryColor: colors[0], secondaryColor: colors[2], speed: 1 }
+})));

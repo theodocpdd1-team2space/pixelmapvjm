@@ -1,0 +1,64 @@
+import { build } from 'esbuild';
+import { chromium } from 'playwright';
+import { readFile, mkdir } from 'node:fs/promises';
+import { createServer } from 'node:http';
+import assert from 'node:assert/strict';
+import postcss from 'postcss';
+import tailwind from '@tailwindcss/postcss';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+const qaDir = join(tmpdir(), 'pixelmap-qa');
+const css = (await postcss([tailwind()]).process(await readFile('src/app/globals.css', 'utf8'), { from: 'src/app/globals.css' })).css;
+
+const result = await build({ entryPoints: ['tests/browser-entry.tsx'], bundle: true, format: 'iife', globalName: 'editorTests', platform: 'browser', write: false, define: { 'process.env.NODE_ENV': '"development"', 'process.env': '{}' }, jsx: 'automatic' });
+const html = '<!doctype html><html><head><link rel="stylesheet" href="/style.css"></head><body style="background:#111;color:white;font:13px sans-serif"><div id="root"></div><script src="/tests.js"></script></body></html>';
+const server = createServer((req, res) => { res.setHeader('Content-Type', req.url === '/tests.js' ? 'application/javascript' : req.url === '/style.css' ? 'text/css' : 'text/html'); res.end(req.url === '/tests.js' ? result.outputFiles[0].text : req.url === '/style.css' ? css : html); });
+await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+let browser;
+try {
+  browser = await chromium.launch({ headless: true, channel: "chromium" });
+  const page = await browser.newPage({ viewport: { width: 1480, height: 1000 }, acceptDownloads: true });
+  const errors = []; page.on('pageerror', e => { errors.push(e.message); console.error('Browser error:', e.message); });
+  await page.goto(`http://127.0.0.1:${server.address().port}`);
+  const fixture = await readFile('tests/fixtures/resolume.xml', 'utf8');
+  console.log(await page.evaluate(xml => window.editorTests.runChecks(xml), fixture));
+  await mkdir(qaDir, { recursive: true });
+  await page.locator('#contact-sheet').screenshot({ path: join(qaDir, 'test-cards.png') });
+  await page.evaluate(() => window.editorTests.mount());
+  await page.getByRole('button', { name: 'Wire Tunnel', exact: true }).click();
+  assert(await page.evaluate(() => window.editorTests.state().screens.every(s => s.animation.type === 'wire-tunnel')));
+  await page.getByRole('button', { name: 'Festival • Magenta / Lime', exact: true }).click();
+  assert(await page.evaluate(() => !window.editorTests.state().previewPlaying && window.editorTests.state().screens.every(s => s.pattern.type === 'festival-card')));
+  await page.evaluate(() => window.editorTests.state().selectScreen(window.editorTests.state().screens[0].id));
+  await page.getByText('Center Badge Text', { exact: true }).waitFor();
+  const badge = page.getByText('Center Badge Text', { exact: true }).locator('..').locator('input');
+  await badge.fill('VJM'); await badge.blur();
+  assert(await page.evaluate(() => window.editorTests.state().screens[0].pattern.badgeText === 'VJM'));
+  await page.locator('input[type=file]').setInputFiles('tests/fixtures/resolume.xml');
+  await page.getByRole('status').filter({ hasText: '4 slice' }).waitFor();
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'EXPORT NEW LAYOUT XML' }).click();
+  assert((await download).suggestedFilename().endsWith('.xml'));
+  await page.evaluate(xml => {
+    window.linkedTestXml = xml;
+    window.showOpenFilePicker = async () => [{ name: 'linked.xml', getFile: async () => new File([window.linkedTestXml], 'linked.xml', { type: 'application/xml' }) }];
+  }, fixture);
+  await page.getByRole('button', { name: 'LINK XML', exact: true }).click();
+  await page.getByRole('status').filter({ hasText: 'AUTO SYNC' }).waitFor();
+  await page.evaluate(() => {
+    const state = window.editorTests.state();
+    const screen = state.screens.find(s => s.metadata.resolumeSource === 'linked.xml');
+    state.updateScreen(screen.id, { pattern: { ...screen.pattern, accentColor: '#123456' } });
+    window.linkedTestXml = window.linkedTestXml.replaceAll('x="320"', 'x="304"');
+  });
+  await page.waitForFunction(() => window.editorTests.state().screens.some(s => s.metadata.resolumeSource === 'linked.xml' && s.x === 304 && s.pattern.accentColor === '#123456'));
+  await page.getByRole('button', { name: 'STOP AUTO SYNC', exact: true }).click();
+  assert(await page.evaluate(() => window.editorTests.state().screens.filter(s => s.metadata.resolumeSource === 'linked.xml').length === 4));
+  await page.screenshot({ path: join(qaDir, 'editor.png'), fullPage: true });
+  const mp4 = page.waitForEvent('download');
+  await page.evaluate(() => window.editorTests.recordSample());
+  const file = await mp4; await file.saveAs(join(qaDir, 'sample.mp4'));
+  assert((await readFile(join(qaDir, 'sample.mp4'))).length > 1000);
+  assert.deepEqual(errors, []);
+  console.log('PASS: parser, schema persistence, sync/undo, render, React controls, XML download, file-link auto sync, MP4 recording');
+} finally { await browser?.close(); server.close(); }
