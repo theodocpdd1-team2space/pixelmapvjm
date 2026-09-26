@@ -77,6 +77,16 @@ export const defaultScreenMask: ScreenMaskSettings = {
 };
 
 export type ScreenPatternSettings = {
+  centerMode: "screen" | "logo";
+  logoTemplate: "monogram" | "diamond" | "orbit" | "upload";
+  logoText: string;
+  logoColor: string;
+  logoExtrude: boolean;
+  logoDepth: number;
+  logoShine: boolean;
+  logoRotate: boolean;
+  logoSpeed: number;
+
   type: StaticPatternType;
   mode: PatternMode;
   primaryColor: string;
@@ -89,6 +99,7 @@ export type ScreenPatternSettings = {
   moduleGridColor: string;
   pixelDotColor: string;
   lineWidth: number;
+  gridSource: "cabinet" | "custom";
   gridSize: number;
   labelSize: number;
   showScreenName: boolean;
@@ -116,6 +127,16 @@ export type ScreenPatternSettings = {
 };
 
 export const defaultScreenPattern: ScreenPatternSettings = {
+  centerMode: "screen" as const,
+  logoTemplate: "monogram" as const,
+  logoText: "VJM",
+  logoColor: "#FFFFFF",
+  logoExtrude: true,
+  logoDepth: 0.12,
+  logoShine: true,
+  logoRotate: false,
+  logoSpeed: 0.25,
+
   accentColor: "#FFE600",
   badgeText: "E",
   showCellLabels: false,
@@ -128,6 +149,7 @@ export const defaultScreenPattern: ScreenPatternSettings = {
   moduleGridColor: "#43F58A",
   pixelDotColor: "#E9FFF1",
   lineWidth: 2,
+  gridSource: "cabinet",
   gridSize: 64,
   labelSize: 28,
   showScreenName: true,
@@ -205,6 +227,7 @@ export type AnimationType =
   | "strobe-random";
 
 export type ScreenAnimationSettings = {
+  opacity: number;
   type: AnimationType;
   primaryColor: string;
   secondaryColor: string;
@@ -213,6 +236,7 @@ export type ScreenAnimationSettings = {
 };
 
 export const defaultScreenAnimation: ScreenAnimationSettings = {
+  opacity: 0.45,
   type: "gradient-wipe",
   primaryColor: "#32D583",
   secondaryColor: "#FF3030",

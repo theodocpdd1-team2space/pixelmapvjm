@@ -1,5 +1,6 @@
 import type { CabinetSettings, EditorCanvasSettings, EditorScreen } from "@/features/editor/types";
 import { defaultScreenAnimation, defaultScreenMask, defaultScreenPattern } from "@/features/editor/types";
+import { cabinetForDimensions } from "./cabinet-layout";
 import { defaultCabinetSettings } from "@/features/editor/cabinet-presets";
 
 export function createRectangleScreen(canvas: EditorCanvasSettings, index: number): EditorScreen {
@@ -25,7 +26,7 @@ export function createRectangleScreen(canvas: EditorCanvasSettings, index: numbe
     visible: true,
     zIndex: index,
     groupId: null,
-    cabinet: { ...defaultCabinetSettings },
+    cabinet: cabinetForDimensions(defaultCabinetSettings, width, height),
     mask: { ...defaultScreenMask, points: defaultScreenMask.points.map((point) => ({ ...point })) },
     pattern: { ...defaultScreenPattern },
     animation: { ...defaultScreenAnimation },
@@ -48,8 +49,8 @@ export function duplicateScreen(screen: EditorScreen, index: number): EditorScre
 
 export function createCabinetScreen(canvas: EditorCanvasSettings, index: number, cabinet: CabinetSettings): EditorScreen {
   const screen = createRectangleScreen(canvas, index);
-  const width = Math.max(8, cabinet.pixelWidth * cabinet.cabinetColumns);
-  const height = Math.max(8, cabinet.pixelHeight * cabinet.cabinetRows);
+  const width = Math.max(1, cabinet.pixelWidth * cabinet.cabinetColumns);
+  const height = Math.max(1, cabinet.pixelHeight * cabinet.cabinetRows);
   return {
     ...screen,
     name: `CABINET ARRAY ${String(index + 1).padStart(2, "0")}`,

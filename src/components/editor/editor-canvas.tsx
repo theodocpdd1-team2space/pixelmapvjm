@@ -5,7 +5,7 @@ import { Circle, Group, Image as KonvaImage, Layer, Line, Rect, Shape, Stage, Tr
 import type Konva from "konva";
 import type { KonvaEventObject } from "konva/lib/Node";
 import { drawPattern, drawLabel } from "@/features/editor/render-service";
-import { snapRectToCanvas } from "@/features/editor/geometry";
+import { snapRectToCanvas, snapScreenPosition } from "@/features/editor/geometry";
 import { drawMaskPath, isMaskActive, maskAbsolutePoints, normalizeScreenMask } from "@/features/editor/mask";
 import { defaultScreenPattern } from "@/features/editor/types";
 import type { EditorScreen, MaskPoint, ScreenPatternSettings } from "@/features/editor/types";
@@ -89,20 +89,16 @@ function Checkerboard({ width, height }: { width: number; height: number }) {
 }
 
 function useHtmlImage(src: string | null) {
-  const [image, setImage] = useState<HTMLImageElement | null>(null);
-
+  const [loaded, setLoaded] = useState<{ src: string; image: HTMLImageElement | null } | null>(null);
   useEffect(() => {
-    if (!src) {
-      return;
-    }
-
+    if (!src) return;
     const next = new Image();
-    next.onload = () => setImage(next);
-    next.onerror = () => setImage(null);
+    next.onload = () => setLoaded({ src, image: next });
+    next.onerror = () => setLoaded({ src, image: null });
     next.src = src;
+    return () => { next.onload = null; next.onerror = null; };
   }, [src]);
-
-  return src ? image : null;
+  return src && loaded?.src === src ? loaded.image : null;
 }
 
 function maskClipFunc(screen: EditorScreen) {
@@ -211,6 +207,7 @@ function ScreenNode({
   const selectScreen = useEditorStore((state) => state.selectScreen);
   const updateScreen = useEditorStore((state) => state.updateScreen);
   const logoImage = useHtmlImage(typeof screen.metadata.logoDataUrl === "string" ? screen.metadata.logoDataUrl : null);
+  const centerLogoImage = useHtmlImage(typeof screen.pattern.logoDataUrl === "string" ? screen.pattern.logoDataUrl : null);
   const polygonMask = screenUsesPolygonMask(screen);
 
   if (!screen.visible) {
@@ -242,12 +239,13 @@ function ScreenNode({
         }}
         onDragStart={beginTransform}
         onDragMove={(event) => {
-          const snapped = snapRectToCanvas(
+          const snapped = snapScreenPosition(
             {
               x: event.target.x(),
               y: event.target.y(),
               width: screen.width,
-              height: screen.height
+              height: screen.height,
+              rotation: screen.rotation
             },
             canvas,
             { zoom: useEditorStore.getState().zoom, otherScreens: screens.filter((item) => item.id !== screen.id && item.visible) }
@@ -265,12 +263,13 @@ function ScreenNode({
           );
         }}
         onDragEnd={(event) => {
-          const snapped = snapRectToCanvas(
+          const snapped = snapScreenPosition(
             {
               x: event.target.x(),
               y: event.target.y(),
               width: screen.width,
-              height: screen.height
+              height: screen.height,
+              rotation: screen.rotation
             },
             canvas,
             { zoom: useEditorStore.getState().zoom, otherScreens: screens.filter((item) => item.id !== screen.id && item.visible) }
@@ -306,7 +305,7 @@ function ScreenNode({
         {screen.type !== "logo" && patternForScreen(screen).showLogo && logoImage ? (
           <KonvaImage image={logoImage} x={screen.width * 0.36} y={screen.height * 0.28} width={screen.width * 0.28} height={screen.height * 0.44} opacity={0.96} listening={false} />
         ) : null}
-        {screen.type !== "logo" ? <Shape listening={false} sceneFunc={(context) => { context._context.save(); drawLabel(context._context, screen); context._context.restore(); }} /> : null}
+        {screen.type !== "logo" ? <Shape listening={false} sceneFunc={(context) => { context._context.save(); drawLabel(context._context, screen, previewPlaying ? animationTime : 0, centerLogoImage ?? undefined); context._context.restore(); }} /> : null}
       </Group>
       <MaskBorder screen={screen} selected={selected} />
       {selected ? <MaskEditorHandles screen={screen} /> : null}
@@ -461,7 +460,9 @@ export function EditorCanvas({ onViewportChange }: { onViewportChange: (size: { 
         width,
         height
       };
-      const next = shouldSnap
+      // Axis-aligned size snapping distorts a rotated slice (and moves its pivot).
+      const canSnapRectangle = shouldSnap && Math.abs(node.rotation() % 360) < 0.0001 && transformerRef.current?.getActiveAnchor() !== "rotater";
+      const next = canSnapRectangle
         ? snapRectToCanvas(geometry, canvas, { zoom, otherScreens: screens.filter((item) => !selectedIds.includes(item.id) && item.visible) })
         : geometry;
 

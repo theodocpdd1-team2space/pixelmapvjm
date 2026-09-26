@@ -1,4 +1,5 @@
 import type { EditorCanvasSettings } from "@/features/editor/types";
+import { geometryPrecision, pointsBounds, sliceCorners, type SliceGeometry } from "./slice-geometry";
 
 export type RectGeometry = {
   x: number;
@@ -25,6 +26,25 @@ export function snapValue(value: number, canvas: EditorCanvasSettings) {
 
 function snapNear(value: number, target: number, threshold: number) {
   return Math.abs(value - target) <= threshold ? target : value;
+}
+
+/** Moving a slice must never resize its cabinets. Snap its rotated world bounds. */
+export function snapScreenPosition(
+  screen: SliceGeometry,
+  canvas: EditorCanvasSettings,
+  options: { zoom?: number; otherScreens?: SliceGeometry[] } = {}
+): SliceGeometry {
+  if (!canvas.snappingEnabled) return { ...screen, x: geometryPrecision(screen.x), y: geometryPrecision(screen.y) };
+  const threshold = 6 / Math.max(0.05, options.zoom ?? 1);
+  const positioned = { ...screen, x: snapValue(screen.x, canvas), y: snapValue(screen.y, canvas) };
+  const bounds = pointsBounds(sliceCorners(positioned));
+  let x = bounds.x, y = bounds.y;
+  const targets = [{ x: 0, y: 0, width: canvas.width, height: canvas.height }, ...(options.otherScreens ?? []).map(s => pointsBounds(sliceCorners(s)))];
+  for (const target of targets) {
+    for (const value of [target.x, target.x + target.width - bounds.width, target.x + (target.width - bounds.width) / 2]) x = snapNear(x, value, threshold);
+    for (const value of [target.y, target.y + target.height - bounds.height, target.y + (target.height - bounds.height) / 2]) y = snapNear(y, value, threshold);
+  }
+  return { ...screen, x: geometryPrecision(positioned.x + x - bounds.x), y: geometryPrecision(positioned.y + y - bounds.y) };
 }
 
 export function snapRectToCanvas(

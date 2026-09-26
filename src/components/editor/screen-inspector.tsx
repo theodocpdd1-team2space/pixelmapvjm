@@ -1,8 +1,11 @@
 "use client";
 
 import { Copy, Lock, Plus, Sparkles, Trash2, Unlock } from "lucide-react";
+import { CenterLogoControls } from "./center-logo-controls";
 import { NumericField } from "@/components/editor/numeric-field";
 import { Button } from "@/components/ui/button";
+import { getCabinetLayout } from "@/features/editor/cabinet-layout";
+import { geometryPrecision, rotateSliceAroundCenter } from "@/features/editor/slice-geometry";
 import { isStrobeAnimation } from "@/features/editor/animation";
 import { cabinetPresets, cabinetSettingsFromPreset } from "@/features/editor/cabinet-presets";
 import { labelSizeLimits } from "@/features/editor/color";
@@ -73,11 +76,12 @@ export function ScreenInspector() {
   const selectedScreen = screen;
   const pattern = { ...defaultScreenPattern, ...(screen.pattern as Partial<ScreenPatternSettings>) };
   const mask = normalizeScreenMask(screen.mask);
+  const cabinetLayout = getCabinetLayout(screen);
 
   function commitGeometry(key: "x" | "y" | "width" | "height", value?: number) {
     if (value !== undefined) {
       updateScreen(selectedScreen.id, {
-        [key]: key === "width" || key === "height" ? Math.max(1, Math.round(value)) : Math.round(value)
+        [key]: key === "width" || key === "height" ? Math.max(1, geometryPrecision(value)) : geometryPrecision(value)
       });
     }
     commitTransform();
@@ -137,20 +141,20 @@ export function ScreenInspector() {
         <NumericField
           label="X"
           value={screen.x}
-          integer
+          step={0.1}
           onPreview={(value) => {
             beginTransform();
-            updateScreen(screen.id, { x: Math.round(value) });
+            updateScreen(screen.id, { x: value });
           }}
           onCommit={(value) => commitGeometry("x", value)}
         />
         <NumericField
           label="Y"
           value={screen.y}
-          integer
+          step={0.1}
           onPreview={(value) => {
             beginTransform();
-            updateScreen(screen.id, { y: Math.round(value) });
+            updateScreen(screen.id, { y: value });
           }}
           onCommit={(value) => commitGeometry("y", value)}
         />
@@ -158,10 +162,10 @@ export function ScreenInspector() {
           label="W"
           value={screen.width}
           min={1}
-          integer
+          step={0.1}
           onPreview={(value) => {
             beginTransform();
-            updateScreen(screen.id, { width: Math.max(1, Math.round(value)) });
+            updateScreen(screen.id, { width: Math.max(1, value) });
           }}
           onCommit={(value) => commitGeometry("width", value)}
         />
@@ -169,10 +173,10 @@ export function ScreenInspector() {
           label="H"
           value={screen.height}
           min={1}
-          integer
+          step={0.1}
           onPreview={(value) => {
             beginTransform();
-            updateScreen(screen.id, { height: Math.max(1, Math.round(value)) });
+            updateScreen(screen.id, { height: Math.max(1, value) });
           }}
           onCommit={(value) => commitGeometry("height", value)}
         />
@@ -182,7 +186,7 @@ export function ScreenInspector() {
           step={0.1}
           onPreview={(value) => {
             beginTransform();
-            updateScreen(screen.id, { rotation: value });
+            updateScreen(screen.id, rotateSliceAroundCenter(screen, value));
           }}
           onCommit={commitTransform}
         />
@@ -198,6 +202,7 @@ export function ScreenInspector() {
           onCommit={commitTransform}
         />
       </div>
+      <p className="text-xs leading-5 text-pf-muted">W/H follow the slice edges. Rotation turns the card, cabinet grid, logo, and label together around the slice center.</p>
       <div className="space-y-3 border border-pf-border bg-black/20 p-3">
         <p className="font-mono text-xs uppercase text-pf-red">Mask Shape</p>
         <label className="block space-y-2">
@@ -287,8 +292,7 @@ export function ScreenInspector() {
               const nextCabinet = cabinetSettingsFromPreset(event.target.value as CabinetPresetId);
               beginTransform();
               updateScreen(screen.id, {
-                cabinet: nextCabinet,
-                pattern: { ...pattern, gridSize: nextCabinet.pixelWidth }
+                cabinet: nextCabinet
               });
               commitTransform();
             }}
@@ -310,8 +314,7 @@ export function ScreenInspector() {
               const pixelWidth = Math.max(1, Math.round(value));
               beginTransform();
               updateScreen(screen.id, {
-                cabinet: { ...screen.cabinet, presetId: "custom", pixelWidth },
-                pattern: pattern.gridSize === screen.cabinet.pixelWidth ? { ...pattern, gridSize: pixelWidth } : pattern
+                cabinet: { ...screen.cabinet, presetId: "custom", manualOverride: true, pixelWidth }
               });
             }}
             onCommit={commitTransform}
@@ -323,7 +326,7 @@ export function ScreenInspector() {
             onPreview={(value) => {
               beginTransform();
               updateScreen(screen.id, {
-                cabinet: { ...screen.cabinet, presetId: "custom", pixelHeight: Math.max(1, Math.round(value)) }
+                cabinet: { ...screen.cabinet, presetId: "custom", manualOverride: true, pixelHeight: Math.max(1, Math.round(value)) }
               });
             }}
             onCommit={commitTransform}
@@ -396,15 +399,23 @@ export function ScreenInspector() {
         </div>
         <div className="min-w-0 break-words border border-pf-border bg-black/30 p-3 font-mono text-[0.68rem] uppercase leading-5 text-pf-muted">
           <p>CALCULATED CABINET: <span className="text-pf-text">{Math.round(screen.cabinet.physicalWidthMm / screen.cabinet.pixelPitchMm)} × {Math.round(screen.cabinet.physicalHeightMm / screen.cabinet.pixelPitchMm)} PX</span></p>
-          <p>ARRAY OUTPUT: <span className="text-pf-text">{screen.cabinet.pixelWidth * screen.cabinet.cabinetColumns} × {screen.cabinet.pixelHeight * screen.cabinet.cabinetRows} PX</span></p>
-          <p className="mt-1 text-[0.6rem] normal-case">Physical size and pitch are the source of truth. Quick pixel values are editable overrides.</p>
+          <p>NATIVE ARRAY: <span className="text-pf-text">{cabinetLayout.nativeWidth} × {cabinetLayout.nativeHeight} PX</span></p>
+          <p>FULL CABINETS: <span className="text-pf-text">{cabinetLayout.columns} × {cabinetLayout.rows}</span></p>
+          <p className="mt-1 text-[0.6rem] normal-case">Jumlah kabinet dihitung dari ukuran screen dan preset. Columns/Rows mengubah ukuran screen ke kelipatan kabinet utuh.</p>
+          {cabinetLayout.scaled && <p role="note" className="mt-2 text-pf-warning normal-case">Ukuran slice {screen.width} × {screen.height} px berbeda dari native {cabinetLayout.nativeWidth} × {cabinetLayout.nativeHeight} px. Grid menampilkan {cabinetLayout.columns} × {cabinetLayout.rows} kabinet utuh yang diskalakan; periksa jumlah fisik kabinet.</p>}
+          {cabinetLayout.columns * cabinetLayout.rows > 12000 && <p className="mt-2 normal-case">Detail sel disembunyikan di atas 12.000 kabinet.</p>}
         </div>
+        {cabinetLayout.scaled && <Button className="w-full" onClick={() => {
+          beginTransform();
+          updateScreen(screen.id, { width: cabinetLayout.nativeWidth, height: cabinetLayout.nativeHeight });
+          commitTransform();
+        }}>USE NATIVE CABINET SIZE</Button>}
         <div className="grid grid-cols-2 gap-3">
-          <NumericField label="Columns" value={screen.cabinet.cabinetColumns} min={1} onPreview={(value) => { beginTransform(); updateScreen(screen.id, { cabinet: { ...screen.cabinet, cabinetColumns: Math.max(1, Math.round(value)) } }); }} onCommit={commitTransform} />
-          <NumericField label="Rows" value={screen.cabinet.cabinetRows} min={1} onPreview={(value) => { beginTransform(); updateScreen(screen.id, { cabinet: { ...screen.cabinet, cabinetRows: Math.max(1, Math.round(value)) } }); }} onCommit={commitTransform} />
+          <NumericField label="Columns" value={cabinetLayout.columns} integer min={1} onPreview={(value) => { beginTransform(); updateScreen(screen.id, { width: screen.cabinet.pixelWidth * Math.max(1, Math.round(value)) }); }} onCommit={commitTransform} />
+          <NumericField label="Rows" value={cabinetLayout.rows} integer min={1} onPreview={(value) => { beginTransform(); updateScreen(screen.id, { height: screen.cabinet.pixelHeight * Math.max(1, Math.round(value)) }); }} onCommit={commitTransform} />
         </div>
         <label className="flex min-w-0 items-center gap-2 border border-pf-border bg-black/30 p-2 font-mono text-[0.68rem] uppercase text-pf-muted"><input type="checkbox" checked={screen.cabinet.manualOverride} onChange={(event) => updateScreen(screen.id, { cabinet: { ...screen.cabinet, manualOverride: event.target.checked } })} /> <span className="min-w-0 break-words">Manual pixel override</span></label>
-        <Button type="button" className="w-full min-w-0 text-xs" onClick={() => addCabinetArray({ ...screen.cabinet })}><Copy size={14} /> <span className="truncate">CREATE ARRAY SCREEN</span></Button>
+        <Button type="button" className="w-full min-w-0 text-xs" onClick={() => addCabinetArray({ ...screen.cabinet, cabinetColumns: cabinetLayout.columns, cabinetRows: cabinetLayout.rows })}><Copy size={14} /> <span className="truncate">CREATE ARRAY SCREEN</span></Button>
         <div className="grid min-w-0 grid-cols-3 gap-2 font-mono text-[0.68rem] uppercase text-pf-muted">
           <label className="flex min-w-0 items-center gap-2 border border-pf-border bg-black/30 p-2">
             <input
@@ -495,6 +506,14 @@ export function ScreenInspector() {
             </select>
           </label>
           <label className="block space-y-2">
+            <span className="technical-label">Grid Source</span>
+            <select className="technical-input h-9 text-xs" value={pattern.gridSource} onChange={event => {
+              beginTransform();
+              updateScreen(screen.id, { pattern: { ...pattern, gridSource: event.target.value as ScreenPatternSettings["gridSource"] } });
+              commitTransform();
+            }}><option value="cabinet">Cabinet • full cells per screen</option><option value="custom">Custom graphic grid</option></select>
+          </label>
+          {pattern.gridSource === "custom" ? <label className="block space-y-2">
             <span className="technical-label">Pattern Mode</span>
             <select
               className="technical-input h-9 text-xs"
@@ -508,7 +527,7 @@ export function ScreenInspector() {
               <option value="global">Global Pattern</option>
               <option value="local">Local Pattern</option>
             </select>
-          </label>
+          </label> : <p className="text-xs text-pf-muted">Grid mengikuti kabinet dari sudut kiri atas setiap screen. Geser screen tidak memotong sel kabinet.</p>}
           <div className="grid grid-cols-2 gap-3">
             {([
               ["BG", "backgroundColor"],
@@ -534,15 +553,15 @@ export function ScreenInspector() {
             ))}
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <NumericField
-              label="Grid Size"
+            {pattern.gridSource === "custom" && <NumericField
+              label="Graphic Grid Size"
               value={pattern.gridSize}
               min={4}
               onPreview={(value) =>
                 updateScreen(screen.id, { pattern: { ...pattern, gridSize: Math.max(4, Math.round(value)) } })
               }
               onCommit={() => undefined}
-            />
+            />}
             <NumericField
               label="Title Size"
               value={pattern.labelSize}
@@ -579,7 +598,7 @@ export function ScreenInspector() {
               ["Crosshair", "showCenterCrosshair"],
               ["Size", "showSize"],
               ["Position", "showPosition"],
-              ["Screen #", "showScreenIndex"],
+              ["Center Badge", "showScreenIndex"],
               ["Logo", "showLogo"]
             ].map(([label, key]) => (
               <label key={key} className="flex items-center gap-2 border border-pf-border bg-black/30 p-2">
@@ -598,8 +617,13 @@ export function ScreenInspector() {
           </div>
         </div>
       ) : null}
+      {screen.type !== "logo" && <CenterLogoControls key={screen.id} screen={screen} />}
       <div className="space-y-3 border border-pf-border bg-black/20 p-3">
-        <p className="font-mono text-xs uppercase text-pf-red">Video Effects & Colors</p>
+        <p className="font-mono text-xs uppercase text-pf-red">Video Overlay & Colors</p>
+        <label className="block space-y-1"><span className="technical-label">Overlay Opacity • {Math.round((screen.animation.opacity ?? 0.45) * 100)}%</span>
+          <input aria-label="Overlay Opacity" className="w-full" type="range" min={0} max={100} value={Math.round((screen.animation.opacity ?? 0.45) * 100)} onPointerDown={beginTransform} onFocus={beginTransform} onChange={e => { beginTransform(); updateScreen(screen.id, { animation: { ...screen.animation, opacity: Number(e.target.value) / 100 } }); }} onPointerUp={commitTransform} onBlur={commitTransform} onKeyUp={commitTransform} />
+        </label>
+        <p className="text-xs leading-5 text-pf-muted">0% menyembunyikan efek video. Test card, logo, dan label tetap terlihat.</p>
         <label className="block space-y-2">
           <span className="technical-label">Color Template</span>
           <select

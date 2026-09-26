@@ -1,3 +1,6 @@
+export { overlayLogoRegression } from "./overlay-logo-regression";
+export { rotationRegression, loadRotationPreview } from "./rotation-regression";
+export { cabinetRegression } from "./cabinet-regression";
 import { createRoot } from "react-dom/client";
 import { useCallback } from "react";
 import { parseResolumeXml, exportResolumeXml, mergeResolumeScreens } from "../src/features/editor/resolume";
@@ -88,7 +91,7 @@ export async function runChecks(xml: string) {
 export async function recordSample() {
   const state = useEditorStore.getState();
   const small = { ...state.canvas, width: 320, height: 180 };
-  const s = { ...state.screens[0], x: 0, y: 0, width: 320, height: 180, animation: { ...state.screens[0].animation, type: "wire-tunnel" as const } };
+  const s = { ...state.screens[0], x: 0, y: 0, width: 320, height: 180, pattern: { ...defaultScreenPattern, ...state.screens[0].pattern, centerMode: "logo", showScreenIndex: true, logoRotate: true }, animation: { ...state.screens[0].animation, type: "wire-tunnel" as const } };
   await exportMp4(small, [s], () => {}, { fps: 30, duration: 1 });
 }
 

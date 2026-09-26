@@ -12,15 +12,18 @@ import type {
   SaveStatus
 } from "@/features/editor/types";
 import { duplicateScreen, createCabinetScreen, createLogoScreen, createRectangleScreen } from "@/features/editor/screen-factory";
-import { clamp, fitZoom, snapRectToCanvas } from "@/features/editor/geometry";
+import { clamp, fitZoom, snapRectToCanvas, snapScreenPosition } from "@/features/editor/geometry";
+import { cabinetForDimensions } from "@/features/editor/cabinet-layout";
 import { defaultCabinetSettings } from "@/features/editor/cabinet-presets";
 import { normalizeScreenMask } from "@/features/editor/mask";
+import { geometryPrecision, migrateLegacyResolumeRectangle } from "@/features/editor/slice-geometry";
 import { defaultScreenPattern } from "@/features/editor/types";
 
 import { mergeResolumeScreens, type ResolumeImport } from "@/features/editor/resolume";
 
 const HISTORY_LIMIT = 100;
 const defaultAnimationSettings: ScreenAnimationSettings = {
+  opacity: 0.45,
   type: "gradient-wipe",
   primaryColor: "#32D583",
   secondaryColor: "#FF3030",
@@ -117,13 +120,14 @@ function normalizeScreenOrder(screens: EditorScreen[]) {
   return screens
     .slice()
     .sort((a, b) => a.zIndex - b.zIndex)
+    .map(migrateLegacyResolumeRectangle)
     .map((screen, index) => ({
       ...screen,
-      x: Math.round(screen.x),
-      y: Math.round(screen.y),
-      width: Math.max(1, Math.round(screen.width)),
-      height: Math.max(1, Math.round(screen.height)),
-      cabinet: screen.cabinet ?? { ...defaultCabinetSettings },
+      x: geometryPrecision(screen.x),
+      y: geometryPrecision(screen.y),
+      width: Math.max(1, geometryPrecision(screen.width)),
+      height: Math.max(1, geometryPrecision(screen.height)),
+      cabinet: cabinetForDimensions(screen.cabinet ?? defaultCabinetSettings, Math.max(1, screen.width), Math.max(1, screen.height)),
       mask: normalizeScreenMask(screen.mask),
       animation: { ...defaultAnimationSettings, ...screen.animation },
       pattern: { ...defaultScreenPattern, ...(screen.pattern as Partial<ScreenPatternSettings>) },
@@ -133,10 +137,10 @@ function normalizeScreenOrder(screens: EditorScreen[]) {
 
 function sanitizeScreenPatch(patch: Partial<EditorScreen>) {
   const next = { ...patch };
-  if (typeof next.x === "number") next.x = Math.round(next.x);
-  if (typeof next.y === "number") next.y = Math.round(next.y);
-  if (typeof next.width === "number") next.width = Math.max(1, Math.round(next.width));
-  if (typeof next.height === "number") next.height = Math.max(1, Math.round(next.height));
+  if (typeof next.x === "number") next.x = geometryPrecision(next.x);
+  if (typeof next.y === "number") next.y = geometryPrecision(next.y);
+  if (typeof next.width === "number") next.width = Math.max(1, geometryPrecision(next.width));
+  if (typeof next.height === "number") next.height = Math.max(1, geometryPrecision(next.height));
   return next;
 }
 
@@ -403,12 +407,13 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
           return screen;
         }
 
-        const snapped = snapRectToCanvas(
+        const snapped = snapScreenPosition(
           {
             x: screen.x + dx,
             y: screen.y + dy,
             width: screen.width,
-            height: screen.height
+            height: screen.height,
+            rotation: screen.rotation
           },
           current.canvas
         );
@@ -434,13 +439,17 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
 
         const next = { ...screen, ...sanitizeScreenPatch(patch) };
         if (options?.snap) {
-          const snapped = snapRectToCanvas(next, state.canvas);
+          const rotated = Math.abs(next.rotation % 360) > 0.0001;
+          const snapped = rotated ? snapScreenPosition(next, state.canvas) : snapRectToCanvas(next, state.canvas);
           next.x = snapped.x;
           next.y = snapped.y;
-          next.width = Math.max(state.canvas.gridSize, snapped.width);
-          next.height = Math.max(state.canvas.gridSize, snapped.height);
+          if (!rotated) {
+            next.width = Math.max(state.canvas.gridSize, snapped.width);
+            next.height = Math.max(state.canvas.gridSize, snapped.height);
+          }
         }
 
+        next.cabinet = cabinetForDimensions(next.cabinet, next.width, next.height);
         return next;
       }),
       saveStatus: "EDITING"

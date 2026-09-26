@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { Prisma } from "@prisma/client";
+import { geometryPrecision } from "@/features/editor/slice-geometry";
 
 const cabinetSchema = z.object({
   presetId: z
@@ -48,6 +49,7 @@ const defaultCabinetSchemaValue = {
 };
 
 const animationSchema = z.object({
+  opacity: z.number().min(0).max(1).default(0.45),
   type: z
     .enum([
       "none",
@@ -75,6 +77,16 @@ const animationSchema = z.object({
 });
 
 const patternSchema = z.object({
+  centerMode: z.enum(["screen", "logo"]).default("screen"),
+  logoTemplate: z.enum(["monogram", "diamond", "orbit", "upload"]).default("monogram"),
+  logoText: z.string().max(12).default("VJM"),
+  logoColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).default("#FFFFFF"),
+  logoExtrude: z.boolean().default(true),
+  logoDepth: z.number().min(0).max(0.3).default(0.12),
+  logoShine: z.boolean().default(true),
+  logoRotate: z.boolean().default(false),
+  logoSpeed: z.number().min(0.05).max(2).default(0.25),
+  gridSource: z.enum(["cabinet", "custom"]).default("cabinet"),
   accentColor: z.string().default("#FFE600"),
   badgeText: z.string().max(8).default("E"),
   showCellLabels: z.boolean().default(false),
@@ -130,6 +142,17 @@ const patternSchema = z.object({
 });
 
 const defaultPatternSchemaValue = {
+  centerMode: "screen" as const,
+  logoTemplate: "monogram" as const,
+  logoText: "VJM",
+  logoColor: "#FFFFFF",
+  logoExtrude: true,
+  logoDepth: 0.12,
+  logoShine: true,
+  logoRotate: false,
+  logoSpeed: 0.25,
+
+  gridSource: "cabinet" as const,
   accentColor: "#FFE600",
   badgeText: "E",
   showCellLabels: false,
@@ -168,6 +191,7 @@ const defaultPatternSchemaValue = {
 };
 
 const defaultAnimationSchemaValue = {
+  opacity: 0.45,
   type: "gradient-wipe" as const,
   primaryColor: "#32D583",
   secondaryColor: "#FF3030",
@@ -197,8 +221,8 @@ const pixelNumberSchema = z.preprocess((value) => {
   if (typeof value !== "number" || !Number.isFinite(value)) {
     return value;
   }
-  return Math.round(value);
-}, z.number().int());
+  return geometryPrecision(value);
+}, z.number());
 
 export const editorScreenSchema = z.object({
   id: z.string().min(1),

@@ -6,6 +6,7 @@ import type {
   ScreenPatternSettings
 } from "@/features/editor/types";
 import { drawStageCard, drawStageEffect, drawStageLabel, stageCardTypes, stageEffectTypes } from "./stage-visuals";
+import { getCabinetLayout, getPatternGrid, patternCells } from "./cabinet-layout";
 import { getStrobeAnimationState } from "@/features/editor/animation";
 import {
   adaptiveLabelSize,
@@ -51,16 +52,8 @@ function loadImage(src: string) {
 
 async function buildImageCache(screens: EditorScreen[]) {
   const cache: ImageCache = new Map();
-  const logoScreens = screens.filter((screen) => typeof screen.metadata.logoDataUrl === "string");
-
-  await Promise.all(
-    logoScreens.map(async (screen) => {
-      const dataUrl = String(screen.metadata.logoDataUrl);
-      if (!cache.has(dataUrl)) {
-        cache.set(dataUrl, await loadImage(dataUrl));
-      }
-    })
-  );
+  const urls = new Set(screens.flatMap(screen => [screen.metadata.logoDataUrl, screen.pattern.centerMode === "logo" && screen.pattern.logoTemplate === "upload" ? screen.pattern.logoDataUrl : undefined]).filter((url): url is string => typeof url === "string" && url.length > 0));
+  await Promise.all([...urls].map(async url => { cache.set(url, await loadImage(url)); }));
 
   return cache;
 }
@@ -76,15 +69,18 @@ function drawLine(ctx: CanvasRenderingContext2D, points: number[]) {
 
 function drawCabinetGrid(ctx: CanvasRenderingContext2D, screen: EditorScreen, pattern: ScreenPatternSettings) {
   const baseAlpha = ctx.globalAlpha;
+  const layout = getCabinetLayout(screen);
   ctx.lineWidth = Math.max(1, screen.cabinet.cabinetLineThickness ?? pattern.cabinetGridThickness);
   ctx.strokeStyle = pattern.cabinetGridColor;
   ctx.globalAlpha = baseAlpha * (screen.cabinet.cabinetLineOpacity ?? 0.72);
 
   if (screen.cabinet.showCabinetGrid) {
-    for (let x = screen.cabinet.pixelWidth; x < screen.width; x += screen.cabinet.pixelWidth) {
+    for (let col = 1; col < Math.min(layout.columns, 12000); col++) {
+      const x = Math.round(col * layout.cellWidth);
       drawLine(ctx, [x, 0, x, screen.height]);
     }
-    for (let y = screen.cabinet.pixelHeight; y < screen.height; y += screen.cabinet.pixelHeight) {
+    for (let row = 1; row < Math.min(layout.rows, 12000); row++) {
+      const y = Math.round(row * layout.cellHeight);
       drawLine(ctx, [0, y, screen.width, y]);
     }
   }
@@ -93,10 +89,14 @@ function drawCabinetGrid(ctx: CanvasRenderingContext2D, screen: EditorScreen, pa
     ctx.globalAlpha = baseAlpha;
     ctx.lineWidth = 1;
     ctx.strokeStyle = colorWithAlpha(pattern.moduleGridColor, patternRenderConstants.moduleGridAlpha);
-    for (let x = screen.cabinet.modulePixelWidth; x < screen.width; x += screen.cabinet.modulePixelWidth) {
+    const columns = layout.columns * Math.max(1, Math.round(screen.cabinet.pixelWidth / screen.cabinet.modulePixelWidth));
+    const rows = layout.rows * Math.max(1, Math.round(screen.cabinet.pixelHeight / screen.cabinet.modulePixelHeight));
+    for (let col = 1; col < Math.min(columns, 12000); col++) {
+      const x = Math.round(col * screen.width / columns);
       drawLine(ctx, [x, 0, x, screen.height]);
     }
-    for (let y = screen.cabinet.modulePixelHeight; y < screen.height; y += screen.cabinet.modulePixelHeight) {
+    for (let row = 1; row < Math.min(rows, 12000); row++) {
+      const y = Math.round(row * screen.height / rows);
       drawLine(ctx, [0, y, screen.width, y]);
     }
   }
@@ -112,11 +112,7 @@ export function drawPattern(
 ) {
   const pattern = { ...defaultScreenPattern, ...(screen.pattern as Partial<ScreenPatternSettings>) };
   const calibration = pattern.type === "mapper-calibration" || pattern.type === "calibration";
-  const globalOffsetX = pattern.mode === "global" ? screen.x : 0;
-  const globalOffsetY = pattern.mode === "global" ? screen.y : 0;
-  const grid = Math.max(4, pattern.gridSize);
-  const startX = -(((globalOffsetX % grid) + grid) % grid);
-  const startY = -(((globalOffsetY % grid) + grid) % grid);
+  const grid = getPatternGrid(screen, pattern);
 
   ctx.fillStyle = pattern.backgroundColor;
   ctx.fillRect(0, 0, screen.width, screen.height);
@@ -136,26 +132,26 @@ export function drawPattern(
   }
 
   if (pattern.type === "checkerboard" || calibration) {
-    for (let y = startY; y < screen.height; y += grid) {
-      for (let x = startX; x < screen.width; x += grid) {
-        const parity = (Math.floor((x + globalOffsetX) / grid) + Math.floor((y + globalOffsetY) / grid)) % 2;
-        if (pattern.type === "checkerboard" || parity === 0) {
-          ctx.fillStyle = pattern.type === "checkerboard"
-            ? parity === 0 ? pattern.primaryColor : pattern.secondaryColor
-            : colorWithAlpha(pattern.secondaryColor, patternRenderConstants.calibrationCheckerAlpha);
-          ctx.fillRect(x, y, grid, grid);
-        }
+    for (const { x, y, width, height, col, row } of patternCells(screen, pattern)) {
+      const parity = ((col + row) % 2 + 2) % 2;
+      if (pattern.type === "checkerboard" || parity === 0) {
+        ctx.fillStyle = pattern.type === "checkerboard"
+          ? parity === 0 ? pattern.primaryColor : pattern.secondaryColor
+          : colorWithAlpha(pattern.secondaryColor, patternRenderConstants.calibrationCheckerAlpha);
+        ctx.fillRect(x, y, width, height);
       }
     }
   }
 
-  if (pattern.type === "grid" || calibration) {
+  if ((pattern.type === "grid" || calibration) && grid.columns + grid.rows < 12000) {
     ctx.strokeStyle = pattern.type === "grid" ? pattern.gridColor : colorWithAlpha(pattern.gridColor, patternRenderConstants.calibrationGridAlpha);
     ctx.lineWidth = pattern.lineWidth;
-    for (let x = startX; x < screen.width; x += grid) {
+    for (let col = 0; col <= grid.columns; col++) {
+      const x = Math.round(grid.x + col * grid.width);
       drawLine(ctx, [x, 0, x, screen.height]);
     }
-    for (let y = startY; y < screen.height; y += grid) {
+    for (let row = 0; row <= grid.rows; row++) {
+      const y = Math.round(grid.y + row * grid.height);
       drawLine(ctx, [0, y, screen.width, y]);
     }
   }
@@ -208,51 +204,39 @@ export function drawPattern(
   if (time !== undefined) drawAnimation(ctx, screen, screens, time);
 }
 
-function drawAnimation(ctx: CanvasRenderingContext2D, screen: EditorScreen, screens: EditorScreen[], time: number) {
+export function drawAnimation(ctx: CanvasRenderingContext2D, screen: EditorScreen, screens: EditorScreen[], time: number) {
   const animation = screen.animation;
-  if (animation.type === "none") {
-    return;
-  }
-
+  const opacity = Math.max(0, Math.min(1, animation.opacity ?? 0.45));
+  if (animation.type === "none" || opacity === 0) return;
+  ctx.save();
+  ctx.globalAlpha *= opacity;
+  ctx.globalCompositeOperation = "screen";
   if (stageEffectTypes.includes(animation.type)) {
     drawStageEffect(ctx, screen, screens, time);
+    ctx.restore();
     return;
   }
 
   const rawProgress = ((time * animation.speed) % 1 + 1) % 1;
   const progress = 0.5 - Math.cos(rawProgress * Math.PI * 2) / 2;
-  ctx.save();
   const baseAlpha = ctx.globalAlpha;
   ctx.fillStyle = animation.primaryColor;
 
-  if (animation.type === "gradient-wipe") {
-    const horizontal = animation.direction === "left-to-right" || animation.direction === "right-to-left";
+  if (["gradient-wipe", "horizontal-wipe", "vertical-wipe"].includes(animation.type)) {
+    const horizontal = animation.type === "horizontal-wipe" || (animation.type === "gradient-wipe" && (animation.direction === "left-to-right" || animation.direction === "right-to-left"));
     const length = horizontal ? screen.width : screen.height;
-    const band = Math.max(120, length * 0.26);
-    const head = (animation.direction === "right-to-left" || animation.direction === "bottom-to-top" ? 1 - progress : progress) * (length + band) - band;
-    const gradient = horizontal
-      ? ctx.createLinearGradient(head, 0, head + band, 0)
-      : ctx.createLinearGradient(0, head, 0, head + band);
-
-    gradient.addColorStop(0, "rgba(0,0,0,0)");
-    gradient.addColorStop(0.18, animation.secondaryColor);
-    gradient.addColorStop(0.5, animation.primaryColor);
-    gradient.addColorStop(0.82, animation.secondaryColor);
-    gradient.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.globalAlpha = baseAlpha * animationRenderConstants.gradientBaseOpacity;
-    ctx.fillStyle = animation.primaryColor;
-    ctx.fillRect(0, 0, screen.width, screen.height);
-    ctx.globalAlpha = baseAlpha * animationRenderConstants.gradientHeadOpacity;
+    const band = Math.max(24, length * 0.32);
+    const reverse = animation.direction === "right-to-left" || animation.direction === "bottom-to-top";
+    const head = (reverse ? 1 - rawProgress : rawProgress) * (length + band * 2) - band;
+    const gradient = horizontal ? ctx.createLinearGradient(head - band, 0, head + band, 0) : ctx.createLinearGradient(0, head - band, 0, head + band);
+    gradient.addColorStop(0, colorWithAlpha(animation.primaryColor, 0));
+    gradient.addColorStop(0.35, colorWithAlpha(animation.secondaryColor, 0.25));
+    gradient.addColorStop(0.55, colorWithAlpha(animation.primaryColor, 0.8));
+    gradient.addColorStop(0.62, "rgba(255,255,255,0.9)");
+    gradient.addColorStop(0.72, colorWithAlpha(animation.secondaryColor, 0.5));
+    gradient.addColorStop(1, colorWithAlpha(animation.secondaryColor, 0));
     ctx.fillStyle = gradient;
-    ctx.fillRect(horizontal ? head : 0, horizontal ? 0 : head, horizontal ? band : screen.width, horizontal ? screen.height : band);
-  } else if (animation.type === "horizontal-wipe") {
-    const width = Math.max(1, screen.width * progress);
-    ctx.globalAlpha = baseAlpha * animationRenderConstants.horizontalWipeOpacity;
-    ctx.fillRect(animation.direction === "right-to-left" ? screen.width - width : 0, 0, width, screen.height);
-  } else if (animation.type === "vertical-wipe") {
-    const height = Math.max(1, screen.height * progress);
-    ctx.globalAlpha = baseAlpha * animationRenderConstants.verticalWipeOpacity;
-    ctx.fillRect(0, animation.direction === "bottom-to-top" ? screen.height - height : 0, screen.width, height);
+    ctx.fillRect(horizontal ? head - band : 0, horizontal ? 0 : head - band, horizontal ? band * 2 : screen.width, horizontal ? screen.height : band * 2);
   } else if (animation.type === "scanner") {
     ctx.fillStyle = animation.secondaryColor;
     ctx.globalAlpha = baseAlpha * animationRenderConstants.scannerOpacity;
@@ -263,16 +247,16 @@ function drawAnimation(ctx: CanvasRenderingContext2D, screen: EditorScreen, scre
       : (animation.direction === "bottom-to-top" ? 1 - progress : progress) * (screen.height + barSize) - barSize;
     ctx.fillRect(horizontal ? pos : 0, horizontal ? 0 : pos, horizontal ? barSize : screen.width, horizontal ? screen.height : barSize);
   } else if (animation.type === "radial-wave") {
-    const maxRadius = Math.hypot(screen.width, screen.height);
-    const baseRadius = progress * maxRadius;
-    for (let index = 0; index < 5; index += 1) {
-      const radius = (baseRadius + index * maxRadius * 0.18) % maxRadius;
-      ctx.beginPath();
-      ctx.strokeStyle = index % 2 === 0 ? animation.primaryColor : animation.secondaryColor;
-      ctx.lineWidth = Math.max(3, screen.width * 0.004);
-      ctx.globalAlpha = baseAlpha * (0.75 - index * 0.11);
-      ctx.arc(screen.width / 2, screen.height / 2, radius, 0, Math.PI * 2);
-      ctx.stroke();
+    const maxRadius = Math.hypot(screen.width, screen.height) * 0.55;
+    const reverse = animation.direction === "right-to-left" || animation.direction === "bottom-to-top";
+    for (let index = 0; index < 4; index++) {
+      const phase = ((reverse ? 1 - rawProgress : rawProgress) + index / 4) % 1;
+      const color = index % 2 ? animation.primaryColor : animation.secondaryColor;
+      ctx.strokeStyle = color;
+      ctx.shadowColor = color; ctx.shadowBlur = Math.max(3, Math.min(screen.width, screen.height) * 0.015);
+      ctx.lineWidth = Math.max(2, Math.min(screen.width, screen.height) * 0.008);
+      ctx.globalAlpha = baseAlpha * Math.sin(phase * Math.PI);
+      ctx.beginPath(); ctx.arc(screen.width / 2, screen.height / 2, phase * maxRadius, 0, Math.PI * 2); ctx.stroke();
     }
   } else if (animation.type === "fade-gradient-circle") {
     const maxRadius = Math.hypot(screen.width, screen.height) * 0.52;
@@ -315,9 +299,9 @@ function drawAnimation(ctx: CanvasRenderingContext2D, screen: EditorScreen, scre
   ctx.restore();
 }
 
-export function drawLabel(ctx: CanvasRenderingContext2D, screen: EditorScreen) {
+export function drawLabel(ctx: CanvasRenderingContext2D, screen: EditorScreen, time = 0, logo?: HTMLImageElement) {
   const pattern = { ...defaultScreenPattern, ...(screen.pattern as Partial<ScreenPatternSettings>) };
-  if (stageCardTypes.includes(pattern.type)) { drawStageLabel(ctx, screen); return; }
+  if (stageCardTypes.includes(pattern.type) || pattern.centerMode === "logo" || pattern.showScreenIndex) { drawStageLabel(ctx, screen, time, logo); return; }
   const lines = [
     pattern.showScreenName ? screen.name : "",
     pattern.showSize || pattern.showResolution ? `SIZE: ${Math.round(screen.width)} x ${Math.round(screen.height)}` : "",
@@ -398,7 +382,7 @@ export async function renderEditorFrame(
       }
 
       if (screen.type !== "logo" && options.includeLabels !== false) {
-        drawLabel(ctx, screen);
+        drawLabel(ctx, screen, options.time ?? 0, imageCache.get(String(screen.pattern.logoDataUrl ?? "")));
       }
       ctx.restore();
 

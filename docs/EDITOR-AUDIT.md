@@ -6,7 +6,7 @@
 - Warna primary, secondary, accent, garis, latar, dan label dapat diubah di Screen → Test Pattern. Teks badge, label A1–AA1, koordinat sudut, ukuran sel, lingkaran, diagonal, dan crosshair dapat disesuaikan.
 - Terapkan preset ke seluruh screen atau selection. **Apply Test Card to All** menyalin penyesuaian test card dan mempertahankan teks badge setiap screen.
 - Efek procedural: Wire Tunnel, Neon Flow, Digital Glitch, Slice Chase, Slice Bounce. Warna, kecepatan, dan arah tersedia di inspector. Chase memakai urutan spasial dan clock dari slice pertama menurut arah terpilih; gunakan **Apply Animation to All** untuk menyeragamkan setelan.
-- Preset video menyembunyikan label/grid dan memulai preview. Menggunakan preset test card menghentikan preview. Mengganti efek lewat inspector tetap mempertahankan label yang dipilih.
+- Preset video sekarang menjadi overlay transparan: mempertahankan test card, grid, logo, dan label, lalu memulai preview. Menggunakan preset test card menghentikan preview.
 - Pola, warna, animasi, dan metadata slice tersimpan dalam format proyek lokal/cloud yang sama; dokumen lama memakai default untuk properti baru.
 
 ## Dua arah workflow
@@ -33,7 +33,7 @@ XML baru hanya berisi geometri/nama slice rectangle yang terlihat; logo tidak me
 ## Batas impor/render
 
 - Maksimum 10 MB dan 512 slice; XML rusak, DTD/entity, serta koordinat tidak valid ditolak. Slice tanpa geometri valid dilewati dengan catatan, kecuali tidak ada slice valid sama sekali.
-- Quad input non-persegi menjadi polygon mask. Orientasi tekstur, input mask tambahan, Bezier warp, soft edge, layer/group routing, dan color correction Resolume tidak direproduksi. Status/kelemahan impor ditampilkan di panel.
+- Rectangle input yang diputar dibaca sebagai ukuran sisi lokal + rotasi, termasuk sudut negatif dan 90°/180°. Quad dengan skew/warp tetap menjadi polygon mask; warp tekstur, input mask tambahan, Bezier warp, soft edge, layer/group routing, dan color correction Resolume tidak direproduksi. Status/kelemahan impor ditampilkan di panel.
 - Koordinat negatif atau slice di luar canvas tetap dicatat dan diperingatkan; area luar tidak muncul di ekspor.
 - Physical dimensions pada Coordinate Card dihitung dari ukuran kabinet yang diatur pengguna, bukan ditebak dari XML.
 - MP4 memakai MediaRecorder/H.264 browser dan waktu perekaman nyata. FPS aktual tergantung kemampuan komputer; ketika render lambat, frame dapat terlewat tanpa memperpanjang klip. Resolusi ganjil diberi padding satu piksel untuk encoder. Background transparan menjadi hitam pada MP4.
@@ -83,3 +83,45 @@ npm run build
 ```
 
 Suite browser menguji parser valid/invalid, multi-output, visibility, polygon, identitas slice, pelestarian style ketika sync, undo/redo, XML round trip, schema persistence, chase, animasi pada solid, ekspor statis, kontrol React, download XML dan perekaman MP4. Screenshot QA dan MP4 contoh ditulis ke folder temp `pixelmap-qa`.
+
+
+## Perbaikan grid kabinet — 27 September 2026
+
+Bug: preset test card memakai `gridSize=108`, sementara kabinet P3.91 berukuran 128 × 128. Memilih ulang preset kabinet mengubah `gridSize` sehingga tampilan baru terlihat benar. Grid juga bisa bergeser mengikuti posisi global, memakai ukuran persegi untuk kabinet persegi panjang, dan meninggalkan sel terpotong. Counter array masih menampilkan 1 × 1.
+
+Perbaikan:
+- Default **Grid Source → Cabinet** mengikuti lebar dan tinggi kabinet secara terpisah. Sel dimulai dari sudut kiri atas setiap screen; perpindahan screen atau pilihan global tidak menggeser batas kabinet.
+- Jumlah kolom/baris adalah bilangan bulat terdekat, minimal satu, yang dihitung dari ukuran slice dibagi resolusi kabinet. Sel dibagi merata di dalam slice, tanpa potongan sel pada tepi. Pembagian piksel membulatkan batas kumulatif agar tidak menyisakan celah.
+- Slice 903 × 1280 dengan P3.91 diperkirakan sebagai 7 × 10 kabinet. Native-nya 896 × 1280; visual berisi 70 sel penuh yang diskalakan ke ukuran slice. Mapping XML tidak dipindah atau diubah ukurannya otomatis. Inspector menjelaskan perbedaan ini dan meminta pengguna memeriksa jumlah fisik kabinet.
+- **Use Native Cabinet Size** mengubah W/H menjadi 896 × 1280 pada contoh tersebut; X/Y tetap. Undo/redo didukung. Columns/Rows mengubah dimensi screen menjadi kelipatan kabinet utuh.
+- Load dokumen lama, pembuatan screen, resize, preset/ukuran kabinet, impor dan sinkronisasi XML menghitung ulang counter kabinet. Tidak perlu mengganti preset bolak-balik. Ukuran fisik label memakai jumlah kabinet bulat.
+- **Custom graphic grid** tersedia terpisah untuk pola artistik berbasis piksel. Mode ini memang boleh terpotong; tidak merepresentasikan batas kabinet fisik. Field Grid Size dan mode global/local hanya ditampilkan untuk mode custom.
+- Preview dan ekspor memakai perhitungan sel yang sama. Grid kabinet sangat besar (>12.000 sel) menyembunyikan detail sel agar tidak menggambar kabinet palsu dengan ukuran lebih besar.
+
+Regresi browser mencakup kasus 903 × 1280, pixel sampling 7 kolom penuh, kesamaan render sebelum/sesudah reapply, legacy load, preset bolak-balik, strip 512 × 256, perpindahan posisi global, native correction, Columns/Rows, undo/redo, resize dan sinkronisasi XML.
+
+
+## Overlay video dan logo tengah — 27 September 2026
+
+- Semua animasi dirender di atas test card dengan blending Screen dan **Overlay Opacity 0–100%** (default 45%). Opacity nol identik dengan frame tanpa efek; opacity screen keseluruhan tetap terpisah. Efek tidak lagi mengganti pola dengan solid hitam ataupun menghapus label saat preset dipilih.
+- Wipe menjadi pita cahaya dengan tepi lembut, radial menjadi halo yang mengembang dengan glow/fade, wire tunnel memakai frame heksagon dengan ilusi kedalaman. Semua menggunakan renderer preview/ekspor yang sama.
+- Urutan gambar: test card → overlay video → badge screen/logo → label. Logo dan label kecil tetap jelas di depan efek.
+- **Center Mode**: Screen number / Logo. Mode screen dapat dipakai pada semua pola melalui Center Badge; nomor dan setelan logo tersimpan terpisah. Memilih mode screen mengisi nomor dari urutan screen.
+- Logo bawaan: VJM Monogram, Diamond Emblem, Orbit Emblem. Teks dan warna dapat diganti. Upload PNG/JPG/WebP hingga 5 MB didukung, disimpan sebagai PNG maksimum 1024 px; transparansi dan rasio asli dipertahankan. PNG transparan memberi silhouette extrude terbaik.
+- **Extrude / 3D look**, **Shining**, **Rotate**, **Extrude Depth**, dan **Logo Speed** dapat diatur terpisah. Kedalaman merupakan rendering 2.5D bertumpuk, bukan mesh 3D. Rotasi tidak memutar nama screen. Efek logo tetap berjalan saat efek video None atau opacity overlay nol.
+- **Preview Logo Motion** memulai preview dan **Apply Logo to All** menyalin branding ke semua screen tanpa mengganti pola/efeknya. PNG menampilkan pose waktu nol; MP4 memuat gerakan kilau dan rotasi.
+- Pengujian meliputi opacity nol/setengah/penuh pada sembilan efek, tidak adanya lapisan hitam pengganti, pemulihan state canvas, persistensi schema, tiga template logo, extrude, animasi kilau tanpa rotasi, upload logo, pergantian mode, dan ekspor MP4 H.264.
+
+
+## Slice berotasi — 27 September 2026
+
+Bug: semua InputRect miring sebelumnya diperlakukan sebagai bounding box dengan polygon mask. Sebuah kabinet 128 × 128 pada 45° tampak sebagai sekitar 182 × 182; pola tidak mengikuti sisi kabinet dan label terpotong oleh mask diamond.
+
+- Parser kini mengenali rectangle berotasi dari keempat vertex. X/Y adalah origin lokal, W/H adalah panjang sisi, dan Rotation berasal dari arah sisinya. Grid kabinet, overlay, logo, label, serta border memakai transform yang sama pada preview dan ekspor.
+- Slice persegi maupun persegi panjang mendukung sudut bebas. Geometri subpiksel dipertahankan hingga empat desimal pada state, schema simpan, dan XML; resolusi kabinet tetap bilangan bulat. Rotasi tidak mengubah jumlah kabinet.
+- Dokumen lama yang berisi polygon rectangle hasil impor Resolume diperbaiki saat dibuka. ID, nama, branding, efek, posisi sudut, dan warna dipertahankan. Mask manual dan quad dengan skew/warp tetap menjadi mask. Impor/sync baru ditandai versi geometri agar mask yang kemudian diedit pengguna tidak dikonversi ulang.
+- Rotation di inspector berputar pada pusat slice. Drag memakai batas dunia setelah rotasi dan tidak lagi menyentuh W/H. Transform slice miring tidak menjalankan snap ukuran axis-aligned yang sebelumnya dapat merusak dimensi. Koordinat sudut dan urutan chase memakai posisi setelah rotasi.
+- Canvas otomatis dihitung dari semua sudut yang telah diputar. Ekspor XML dan impor ulang mempertahankan bentuk, sudut, dan ukuran sisi. Ini mendukung Input Selection; Output Transformation/warp perangkat tetap dikelola Resolume.
+- Regresi menguji 10 sudut × 3 ukuran, tiga kali round trip XML/schema, subpiksel, migrasi legacy, undo/redo, sync, drag snapping, cabinet pixel sampling, dan penolakan quad skew. Preview QA memuat angka/logo pada 45°, −30°, 90°, 135°, 22.5°, dan −45°.
+
+Perilaku input berotasi mengikuti konsep [Input Selection Resolume](https://resolume.com/support/en/input-selection). Integrasi ini belum diverifikasi di sesi Resolume pengguna secara langsung.

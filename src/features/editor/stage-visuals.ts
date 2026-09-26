@@ -1,5 +1,8 @@
 import { defaultScreenPattern, type EditorScreen, type ScreenPatternSettings } from "./types";
+import { getCabinetLayout, patternCells } from "./cabinet-layout";
+import { drawCenterLogo } from "./center-logo";
 import { colorWithAlpha } from "./color";
+import { localToComposition } from "./slice-geometry";
 
 export const stageCardTypes = ["festival-card", "badge-card", "coordinate-card"];
 export const stageEffectTypes = ["wire-tunnel", "neon-flow", "digital-glitch", "slice-chase", "slice-bounce"];
@@ -16,27 +19,25 @@ export function cellRowName(index: number): string {
 
 export function drawStageCard(ctx: CanvasRenderingContext2D, screen: EditorScreen, p: ScreenPatternSettings) {
   const w = screen.width, h = screen.height;
-  // Bound drawing work even for very large compositions with tiny grid settings.
-  const size = Math.max(4, p.gridSize, Math.ceil(Math.sqrt(w * h / 12000)));
-  const ox = p.mode === "global" ? screen.x : 0, oy = p.mode === "global" ? screen.y : 0;
-  const sx = -((ox % size + size) % size), sy = -((oy % size + size) % size);
   ctx.save();
-  for (let y = sy; y < h; y += size) for (let x = sx; x < w; x += size) {
-    const col = Math.floor((x + ox) / size), row = Math.floor((y + oy) / size);
+  ctx.fillStyle = p.primaryColor;
+  ctx.fillRect(0, 0, w, h);
+  for (const { x, y, width, height, col, row } of patternCells(screen, p)) {
     const colors = p.type === "badge-card" ? [p.primaryColor, p.secondaryColor, p.accentColor] : [p.primaryColor, p.secondaryColor];
     ctx.fillStyle = colors[((col + row) % colors.length + colors.length) % colors.length];
-    ctx.fillRect(x, y, size, size);
+    ctx.fillRect(x, y, width, height);
     ctx.strokeStyle = colorWithAlpha(p.gridColor, 0.5); ctx.lineWidth = Math.max(0.5, p.lineWidth);
-    ctx.strokeRect(x, y, size, size);
+    ctx.strokeRect(x, y, width, height);
     if (p.showDiagonal) {
       ctx.strokeStyle = "rgba(0,0,0,0.25)";
-      line(ctx, x, y, x + size, y + size); line(ctx, x + size, y, x, y + size);
+      line(ctx, x, y, x + width, y + height); line(ctx, x + width, y, x, y + height);
     }
+    const size = Math.min(width, height);
     if (p.showCellLabels && size >= 24) {
       ctx.font = `700 ${Math.max(10, size * 0.22)}px sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
       ctx.fillStyle = p.labelTextColor;
       ctx.shadowColor = "#000000"; ctx.shadowBlur = 3;
-      ctx.fillText(`${cellRowName(Math.max(0, row))}${col + 1}`, x + size / 2, y + size / 2, size * 0.85);
+      ctx.fillText(`${cellRowName(Math.max(0, row))}${col + 1}`, x + width / 2, y + height / 2, width * 0.85);
       ctx.shadowBlur = 0;
     }
   }
@@ -62,7 +63,8 @@ export function drawStageCard(ctx: CanvasRenderingContext2D, screen: EditorScree
     const fs = Math.max(8, Math.min(24, w / 20, h / 12));
     ctx.font = `700 ${fs}px monospace`; ctx.textBaseline = "top";
     [[0, 0], [w, 0], [0, h], [w, h]].forEach(([x, y]) => {
-      const text = `X:${screen.x + x} Y:${screen.y + y}`;
+      const point = localToComposition(screen, x, y);
+      const text = `X:${Math.round(point.x)} Y:${Math.round(point.y)}`;
       const width = ctx.measureText(text).width + 8;
       ctx.fillStyle = colorWithAlpha(p.labelBackgroundColor, p.labelBackgroundOpacity);
       ctx.fillRect(x ? w - width : 0, y ? h - fs - 8 : 0, width, fs + 8);
@@ -78,7 +80,10 @@ export function getChaseLevel(screen: EditorScreen, screens: EditorScreen[], tim
   const horizontal = a.direction === "left-to-right" || a.direction === "right-to-left";
   const reverse = a.direction === "right-to-left" || a.direction === "bottom-to-top";
   const participants = screens.filter(s => s.visible && s.type !== "logo" && s.animation.type === a.type)
-    .sort((x, y) => (horizontal ? x.x - y.x || x.y - y.y : x.y - y.y || x.x - y.x) || x.zIndex - y.zIndex);
+    .sort((x, y) => {
+      const a = localToComposition(x, x.width / 2, x.height / 2), b = localToComposition(y, y.width / 2, y.height / 2);
+      return (horizontal ? a.x - b.x || a.y - b.y : a.y - b.y || a.x - b.x) || x.zIndex - y.zIndex;
+    });
   if (reverse) participants.reverse();
   const index = participants.findIndex(s => s.id === screen.id), n = participants.length;
   if (index < 0) return 0;
@@ -96,7 +101,7 @@ export function drawStageEffect(ctx: CanvasRenderingContext2D, screen: EditorScr
   const reverse = a.direction === "right-to-left" || a.direction === "bottom-to-top";
   const t = time * a.speed * (reverse ? -1 : 1);
   ctx.save();
-  ctx.fillStyle = "#030308"; ctx.fillRect(0, 0, w, h);
+
   if (a.type === "slice-chase" || a.type === "slice-bounce") {
     const level = getChaseLevel(screen, screens, time);
     ctx.globalAlpha *= level;
@@ -106,12 +111,21 @@ export function drawStageEffect(ctx: CanvasRenderingContext2D, screen: EditorScr
   } else if (a.type === "wire-tunnel") {
     ctx.translate(w / 2, h / 2);
     ctx.lineWidth = Math.max(1.5, Math.min(w, h) / 220);
-    for (let i = 0; i < 18; i++) {
-      const phase = ((i / 18 + t * 0.18) % 1 + 1) % 1;
+    for (let i = 0; i < 12; i++) {
+      const phase = ((i / 12 + t * 0.12) % 1 + 1) % 1;
       const r = Math.pow(phase, 2) * Math.hypot(w, h) * 0.8;
       ctx.save(); ctx.rotate(Math.sin(t * 0.4) * 0.35 + i * 0.035);
       ctx.strokeStyle = colorWithAlpha(i % 2 ? a.primaryColor : a.secondaryColor, phase);
-      ctx.strokeRect(-r, -r * h / w, r * 2, r * 2 * h / w); ctx.restore();
+      ctx.shadowColor = i % 2 ? a.primaryColor : a.secondaryColor;
+      ctx.shadowBlur = Math.max(2, Math.min(w, h) * 0.01);
+      ctx.beginPath();
+      const aspect = w / h;
+      for (let corner = 0; corner < 6; corner++) {
+        const angle = corner / 6 * Math.PI * 2;
+        const x = Math.cos(angle) * r, y = Math.sin(angle) * r / aspect;
+        if (corner === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.closePath(); ctx.stroke(); ctx.restore();
     }
   } else if (a.type === "neon-flow") {
     ctx.lineWidth = Math.max(2, h / 160);
@@ -138,13 +152,16 @@ export function drawStageEffect(ctx: CanvasRenderingContext2D, screen: EditorScr
   ctx.restore();
 }
 
-export function drawStageLabel(ctx: CanvasRenderingContext2D, screen: EditorScreen) {
+export function drawStageLabel(ctx: CanvasRenderingContext2D, screen: EditorScreen, time = 0, logo?: HTMLImageElement) {
   const p = { ...defaultScreenPattern, ...screen.pattern };
   const w = screen.width, h = screen.height;
-  const badge = p.type === "festival-card" || p.type === "badge-card";
-  const radius = Math.min(w * 0.19, h * 0.27);
+  const logoMode = p.centerMode === "logo";
+  const badge = logoMode || p.showScreenIndex || p.type === "festival-card" || p.type === "badge-card";
+  const radius = logoMode ? Math.min(w * 0.25, h * 0.3) : Math.min(w * 0.19, h * 0.27);
   ctx.save();
-  if (badge && p.showScreenIndex && p.badgeText) {
+  if (logoMode && p.showScreenIndex) {
+    drawCenterLogo(ctx, p, w / 2, h / 2, radius, time, logo);
+  } else if (badge && p.showScreenIndex && p.badgeText) {
     ctx.beginPath();
     if (p.type === "badge-card") {
       for (let i = 0; i < 6; i++) {
@@ -158,15 +175,16 @@ export function drawStageLabel(ctx: CanvasRenderingContext2D, screen: EditorScre
     ctx.fillStyle = p.labelBackgroundColor; ctx.font = `900 ${radius * 1.3}px sans-serif`;
     ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(p.badgeText, w / 2, h / 2 + radius * 0.06, radius * 1.65);
   }
-  const lines = [p.showScreenName ? screen.name : "", p.showResolution || p.showSize ? `${w} × ${h} px` : ""];
+  const lines = [p.showScreenName ? screen.name : "", p.showResolution || p.showSize ? `${+w.toFixed(2)} × ${+h.toFixed(2)} px` : ""];
   if (p.showCabinetInfo) {
-    const mw = w / screen.cabinet.pixelWidth * screen.cabinet.physicalWidthMm / 1000;
-    const mh = h / screen.cabinet.pixelHeight * screen.cabinet.physicalHeightMm / 1000;
+    const layout = getCabinetLayout(screen);
+    const mw = layout.physicalWidthMm / 1000;
+    const mh = layout.physicalHeightMm / 1000;
     lines.push(`${mw.toFixed(2)} × ${mh.toFixed(2)} m`);
   }
   const content = lines.filter(Boolean);
   if (content.length) {
-    const fs = Math.max(6, Math.min(p.labelSize, w / 14, h / (badge && p.showScreenIndex ? 18 : 7)));
+    const fs = Math.max(6, Math.min(p.labelSize, w / 14, h / (logoMode && p.showScreenIndex ? 26 : badge && p.showScreenIndex ? 18 : 7)));
     const lh = fs * 1.35, bh = lh * content.length + fs * 0.6;
     ctx.font = `700 ${fs}px sans-serif`;
     const bw = Math.min(w * 0.94, Math.max(...content.map(s => ctx.measureText(s).width)) + fs * 1.6);

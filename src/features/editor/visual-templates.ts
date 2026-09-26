@@ -16,6 +16,7 @@ export const visualTemplates: VisualTemplate[] = [
     fillColor: "#020806",
     borderColor: "#FF3030",
     pattern: {
+      gridSource: "cabinet",
       type: "mapper-calibration",
       mode: "global",
       backgroundColor: "#020806",
@@ -47,6 +48,7 @@ export const visualTemplates: VisualTemplate[] = [
     fillColor: "#160707",
     borderColor: "#FF3030",
     pattern: {
+      gridSource: "cabinet",
       type: "calibration",
       mode: "local",
       backgroundColor: "#050505",
@@ -78,6 +80,7 @@ export const visualTemplates: VisualTemplate[] = [
     fillColor: "#070d1a",
     borderColor: "#2B68FF",
     pattern: {
+      gridSource: "cabinet",
       type: "grid",
       mode: "global",
       backgroundColor: "#05070d",
@@ -107,6 +110,7 @@ export const visualTemplates: VisualTemplate[] = [
     fillColor: "#111111",
     borderColor: "#F4F4F4",
     pattern: {
+      gridSource: "cabinet",
       type: "checkerboard",
       mode: "global",
       backgroundColor: "#111111",
@@ -135,6 +139,7 @@ export const visualTemplates: VisualTemplate[] = [
     fillColor: "#111111",
     borderColor: "#FFFFFF",
     pattern: {
+      gridSource: "cabinet",
       type: "rgb-bars",
       mode: "local",
       backgroundColor: "#000000",
@@ -170,7 +175,7 @@ const stagePalettes = [
 visualTemplates.push(...stagePalettes.map(({ id, label, type, colors }) => ({
   id, label, fillColor: "#050505", borderColor: colors[2],
   pattern: {
-    type, mode: "local" as const, primaryColor: colors[0], secondaryColor: colors[1], accentColor: colors[2],
+    type, gridSource: "cabinet" as const, mode: "local" as const, primaryColor: colors[0], secondaryColor: colors[1], accentColor: colors[2],
     gridColor: "#FFFFFF", gridSize: 108, lineWidth: 1, lineThickness: 2, edgeThickness: 4,
     circleCount: 3, showCircle: true, showDiagonal: true, showCenterCrosshair: true,
     showCellLabels: type === "coordinate-card", showScreenIndex: type !== "coordinate-card",
