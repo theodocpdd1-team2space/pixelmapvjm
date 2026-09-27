@@ -1,5 +1,7 @@
 export { overlayLogoRegression } from "./overlay-logo-regression";
 export { rotationRegression, loadRotationPreview } from "./rotation-regression";
+export { getEditorImage } from "../src/features/editor/image-assets";
+export { renderEditorFrame } from "../src/features/editor/render-service";
 export { cabinetRegression } from "./cabinet-regression";
 import { createRoot } from "react-dom/client";
 import { useCallback } from "react";
@@ -103,3 +105,16 @@ function Harness() {
 }
 export function mount() { createRoot(document.getElementById("root")!).render(<Harness />); }
 export function state() { return useEditorStore.getState(); }
+
+export function loadLogoUploadPreview() {
+  const store = useEditorStore.getState();
+  const canvas = { ...store.canvas, width: 600, height: 400, gridVisible: false };
+  const s = createRectangleScreen(canvas, 0);
+  store.loadDocument({ projectId: 'logo-upload', pageId: 'logo-upload', projectName: 'Logo upload', pages: [], serverUpdatedAt: '', canvas,
+    screens: [{ ...s, x: 40, y: 40, width: 400, height: 300, cabinet: { ...s.cabinet, showCabinetGrid: false, showPixelDots: false },
+      animation: { ...s.animation, type: 'none' },
+      pattern: { ...defaultScreenPattern, type: 'solid', backgroundColor: '#000000', centerMode: 'logo', logoTemplate: 'upload', logoExtrude: false, logoShine: false, logoRotate: false, showScreenIndex: true, showScreenName: false, showSize: false, showResolution: false, showCabinetInfo: false } }]
+  });
+  store.selectScreen(s.id); store.setZoom(1); store.setPan({ x: 0, y: 0 });
+  if (useEditorStore.getState().previewPlaying) store.togglePreview();
+}

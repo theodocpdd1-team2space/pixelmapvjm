@@ -86,6 +86,7 @@ const patternSchema = z.object({
   logoShine: z.boolean().default(true),
   logoRotate: z.boolean().default(false),
   logoSpeed: z.number().min(0.05).max(2).default(0.25),
+  logoScale: z.number().min(0.25).max(2).default(1),
   gridSource: z.enum(["cabinet", "custom"]).default("cabinet"),
   accentColor: z.string().default("#FFE600"),
   badgeText: z.string().max(8).default("E"),
@@ -151,6 +152,7 @@ const defaultPatternSchemaValue = {
   logoShine: true,
   logoRotate: false,
   logoSpeed: 0.25,
+  logoScale: 1,
 
   gridSource: "cabinet" as const,
   accentColor: "#FFE600",

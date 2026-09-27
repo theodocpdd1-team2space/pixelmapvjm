@@ -125,3 +125,10 @@ Bug: semua InputRect miring sebelumnya diperlakukan sebagai bounding box dengan 
 - Regresi menguji 10 sudut × 3 ukuran, tiga kali round trip XML/schema, subpiksel, migrasi legacy, undo/redo, sync, drag snapping, cabinet pixel sampling, dan penolakan quad skew. Preview QA memuat angka/logo pada 45°, −30°, 90°, 135°, 22.5°, dan −45°.
 
 Perilaku input berotasi mengikuti konsep [Input Selection Resolume](https://resolume.com/support/en/input-selection). Integrasi ini belum diverifikasi di sesi Resolume pengguna secara langsung.
+
+## Ukuran dan pemuatan logo — 27 September 2026
+
+- **Center → Logo Size %** menyediakan input angka dan slider 25–200%, relatif terhadap ukuran sebelumnya (100%). Rasio logo dipertahankan; ukuran diterapkan di renderer preview/PNG/MP4 yang sama. Setelan tersimpan di proyek, disalin oleh Apply Logo to All, dan satu gesture slider/input masuk satu langkah undo.
+- Upload kini menunggu PNG hasil normalisasi selesai dimuat dan di-decode sebelum menerapkan URL ke screen. Cache gambar terdekode dipakai bersama upload, canvas, dan ekspor. Canvas menjadwalkan redraw ketika gambar selesai dimuat, termasuk ketika preview berhenti. Upload yang selesai terlambat diabaikan bila pengguna telah memilih file lain, berpindah screen, atau berpindah halaman.
+- Status upload menampilkan proses pemuatan, keberhasilan/error, serta petunjuk jika Show Number / Logo sedang OFF. Status OFF tetap dihormati.
+- Kasus harus refresh belum terulang pada uji awal Chromium. Regresi tambahan memeriksa piksel canvas setelah upload pertama/penggantian file saat paused dan playing, serta decode yang sengaja ditunda untuk memverifikasi bahwa file terbaru yang menang. Pengujian ukuran memeriksa perubahan piksel preview, kesesuaian ekspor, undo, input angka, dan default/persistensi schema.

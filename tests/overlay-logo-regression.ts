@@ -56,6 +56,8 @@ export async function overlayLogoRegression() {
   const upload = document.createElement("canvas"); upload.width = 320; upload.height = 80;
   const uploadedCtx = upload.getContext("2d")!; uploadedCtx.fillStyle = "#EEFFFF"; uploadedCtx.fillRect(0, 0, 320, 80);
   const ownLogo = { ...stage, pattern: { ...stage.pattern, logoTemplate: "upload", logoDataUrl: upload.toDataURL() } };
+  check(editorScreenSchema.parse({ ...ownLogo, pattern: { ...ownLogo.pattern, logoScale: 1.5 } }).pattern.logoScale === 1.5, "logo size persists");
+  check(editorScreenSchema.parse({ ...ownLogo, pattern: { ...ownLogo.pattern, logoScale: undefined } }).pattern.logoScale === 1, "legacy logo size defaults to 100 percent");
   const uploaded = await renderEditorFrame(canvas, [ownLogo], { time: 0 });
   check(uploaded.toDataURL() !== baseline.toDataURL(), "uploaded center logo loads in exported frame");
   document.body.append(sheet);

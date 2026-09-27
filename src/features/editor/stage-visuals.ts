@@ -157,7 +157,7 @@ export function drawStageLabel(ctx: CanvasRenderingContext2D, screen: EditorScre
   const w = screen.width, h = screen.height;
   const logoMode = p.centerMode === "logo";
   const badge = logoMode || p.showScreenIndex || p.type === "festival-card" || p.type === "badge-card";
-  const radius = logoMode ? Math.min(w * 0.25, h * 0.3) : Math.min(w * 0.19, h * 0.27);
+  const radius = logoMode ? Math.min(w * 0.25, h * 0.3) * Math.max(0.25, Math.min(2, p.logoScale)) : Math.min(w * 0.19, h * 0.27);
   ctx.save();
   if (logoMode && p.showScreenIndex) {
     drawCenterLogo(ctx, p, w / 2, h / 2, radius, time, logo);

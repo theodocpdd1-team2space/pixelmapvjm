@@ -1,13 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { NumericField } from "./numeric-field";
 import { defaultScreenPattern, type EditorScreen, type ScreenPatternSettings } from "@/features/editor/types";
 import { useEditorStore } from "@/stores/editor-store";
+import { loadEditorImage } from "@/features/editor/image-assets";
 
 export function CenterLogoControls({ screen }: { screen: EditorScreen }) {
   const [status, setStatus] = useState("");
+  const uploadSequence = useRef(0);
+  useEffect(() => () => { uploadSequence.current++; }, []);
   const p = { ...defaultScreenPattern, ...screen.pattern };
   const update = (patch: Partial<ScreenPatternSettings>) => {
     const store = useEditorStore.getState();
@@ -18,20 +21,35 @@ export function CenterLogoControls({ screen }: { screen: EditorScreen }) {
     store.commitTransform();
   };
 
+  function previewSize(percent: number) {
+    const store = useEditorStore.getState();
+    const current = store.screens.find(s => s.id === screen.id);
+    if (!current) return;
+    store.beginTransform();
+    store.updateScreen(screen.id, { pattern: { ...defaultScreenPattern, ...current.pattern, logoScale: Math.max(25, Math.min(200, percent)) / 100 } });
+  }
+
   async function upload(file: File) {
+    const sequence = ++uploadSequence.current;
     const pageId = useEditorStore.getState().pageId;
     if (!["image/png", "image/jpeg", "image/webp"].includes(file.type) || file.size > 5_000_000) { setStatus("Pilih PNG, JPG, atau WebP maksimum 5 MB."); return; }
     const url = URL.createObjectURL(file);
+    const isCurrent = () => sequence === uploadSequence.current && useEditorStore.getState().pageId === pageId;
+    setStatus(`Memuat ${file.name}…`);
     try {
       const image = new Image(); image.src = url; await image.decode();
       const ratio = Math.min(1, 1024 / Math.max(image.naturalWidth, image.naturalHeight));
       const output = document.createElement("canvas");
       output.width = Math.max(1, Math.round(image.naturalWidth * ratio)); output.height = Math.max(1, Math.round(image.naturalHeight * ratio));
       output.getContext("2d")!.drawImage(image, 0, 0, output.width, output.height);
-      if (useEditorStore.getState().pageId !== pageId) return;
-      update({ logoDataUrl: output.toDataURL("image/png"), logoTemplate: "upload", centerMode: "logo" });
-      setStatus(`${file.name} siap. PNG transparan memberi hasil extrude terbaik.`);
-    } catch { setStatus("Logo tidak dapat dibaca. Coba file gambar lain."); }
+      if (!isCurrent()) return;
+      const dataUrl = output.toDataURL("image/png");
+      await loadEditorImage(dataUrl);
+      if (!isCurrent()) return;
+      update({ logoDataUrl: dataUrl, logoTemplate: "upload", centerMode: "logo" });
+      const visible = useEditorStore.getState().screens.find(s => s.id === screen.id)?.pattern.showScreenIndex;
+      setStatus(`${file.name} siap.${visible ? "" : " Aktifkan Show Number / Logo untuk menampilkannya."}`);
+    } catch { if (isCurrent()) setStatus("Logo tidak dapat dibaca. Coba file gambar lain."); }
     finally { URL.revokeObjectURL(url); }
   }
 
@@ -55,6 +73,11 @@ export function CenterLogoControls({ screen }: { screen: EditorScreen }) {
       </select>
     </label>
     {p.centerMode === "logo" && <>
+      <div className="space-y-2">
+        <NumericField label="Logo Size %" value={Math.round(p.logoScale * 100)} min={25} max={200} integer onPreview={previewSize} onCommit={() => useEditorStore.getState().commitTransform()} />
+        <input aria-label="Logo Size" className="w-full accent-pf-red" type="range" min={25} max={200} step={1} value={Math.round(p.logoScale * 100)} onChange={e => previewSize(Number(e.target.value))} onPointerUp={() => useEditorStore.getState().commitTransform()} onPointerCancel={() => useEditorStore.getState().commitTransform()} onKeyUp={() => useEditorStore.getState().commitTransform()} onBlur={() => useEditorStore.getState().commitTransform()} />
+        <p className="text-xs text-pf-muted">25–200%. 100% adalah ukuran default; rasio logo tetap.</p>
+      </div>
       <label className="block space-y-1"><span className="technical-label">Logo Template</span>
         <select className="technical-input" value={p.logoTemplate} onChange={e => update({ logoTemplate: e.target.value as ScreenPatternSettings["logoTemplate"] })}>
           <option value="monogram">VJM Monogram</option><option value="diamond">Diamond Emblem</option><option value="orbit">Orbit Emblem</option><option value="upload">Uploaded logo</option>
@@ -71,7 +94,7 @@ export function CenterLogoControls({ screen }: { screen: EditorScreen }) {
       <p className="text-xs leading-5 text-pf-muted">Logo berada di depan overlay; nama screen tetap kecil di bawah. Extrude memakai tampilan kedalaman 2.5D. Kilau dan rotasi mengikuti Logo Speed.</p>
       <Button className="w-full" onClick={() => {
         const store = useEditorStore.getState(); store.beginTransform();
-        store.screens.filter(s => s.type !== "logo").forEach(s => store.updateScreen(s.id, { pattern: { ...defaultScreenPattern, ...s.pattern, centerMode: "logo", showScreenIndex: p.showScreenIndex, logoTemplate: p.logoTemplate, logoDataUrl: p.logoDataUrl, logoText: p.logoText, logoColor: p.logoColor, logoExtrude: p.logoExtrude, logoDepth: p.logoDepth, logoShine: p.logoShine, logoRotate: p.logoRotate, logoSpeed: p.logoSpeed } }));
+        store.screens.filter(s => s.type !== "logo").forEach(s => store.updateScreen(s.id, { pattern: { ...defaultScreenPattern, ...s.pattern, centerMode: "logo", showScreenIndex: p.showScreenIndex, logoTemplate: p.logoTemplate, logoDataUrl: p.logoDataUrl, logoText: p.logoText, logoColor: p.logoColor, logoExtrude: p.logoExtrude, logoDepth: p.logoDepth, logoShine: p.logoShine, logoRotate: p.logoRotate, logoSpeed: p.logoSpeed, logoScale: p.logoScale } }));
         store.commitTransform();
       }}>APPLY LOGO TO ALL</Button>
     </>}

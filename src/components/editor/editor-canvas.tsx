@@ -10,6 +10,7 @@ import { drawMaskPath, isMaskActive, maskAbsolutePoints, normalizeScreenMask } f
 import { defaultScreenPattern } from "@/features/editor/types";
 import type { EditorScreen, MaskPoint, ScreenPatternSettings } from "@/features/editor/types";
 import { useEditorStore } from "@/stores/editor-store";
+import { getEditorImage, loadEditorImage } from "@/features/editor/image-assets";
 
 function useElementSize(onChange: (size: { width: number; height: number }) => void) {
   const ref = useRef<HTMLDivElement | null>(null);
@@ -92,13 +93,11 @@ function useHtmlImage(src: string | null) {
   const [loaded, setLoaded] = useState<{ src: string; image: HTMLImageElement | null } | null>(null);
   useEffect(() => {
     if (!src) return;
-    const next = new Image();
-    next.onload = () => setLoaded({ src, image: next });
-    next.onerror = () => setLoaded({ src, image: null });
-    next.src = src;
-    return () => { next.onload = null; next.onerror = null; };
+    let active = true;
+    void loadEditorImage(src).then(image => { if (active) setLoaded({ src, image }); }, () => { if (active) setLoaded({ src, image: null }); });
+    return () => { active = false; };
   }, [src]);
-  return src && loaded?.src === src ? loaded.image : null;
+  return src ? getEditorImage(src) ?? (loaded?.src === src ? loaded.image : null) : null;
 }
 
 function maskClipFunc(screen: EditorScreen) {
@@ -208,6 +207,11 @@ function ScreenNode({
   const updateScreen = useEditorStore((state) => state.updateScreen);
   const logoImage = useHtmlImage(typeof screen.metadata.logoDataUrl === "string" ? screen.metadata.logoDataUrl : null);
   const centerLogoImage = useHtmlImage(typeof screen.pattern.logoDataUrl === "string" ? screen.pattern.logoDataUrl : null);
+  const labelRef = useRef<Konva.Shape | null>(null);
+  useEffect(() => {
+    // An asynchronously decoded image must repaint even while preview is paused.
+    labelRef.current?.getLayer()?.batchDraw();
+  }, [centerLogoImage]);
   const polygonMask = screenUsesPolygonMask(screen);
 
   if (!screen.visible) {
@@ -305,7 +309,7 @@ function ScreenNode({
         {screen.type !== "logo" && patternForScreen(screen).showLogo && logoImage ? (
           <KonvaImage image={logoImage} x={screen.width * 0.36} y={screen.height * 0.28} width={screen.width * 0.28} height={screen.height * 0.44} opacity={0.96} listening={false} />
         ) : null}
-        {screen.type !== "logo" ? <Shape listening={false} sceneFunc={(context) => { context._context.save(); drawLabel(context._context, screen, previewPlaying ? animationTime : 0, centerLogoImage ?? undefined); context._context.restore(); }} /> : null}
+        {screen.type !== "logo" ? <Shape ref={labelRef} listening={false} sceneFunc={(context) => { context._context.save(); drawLabel(context._context, screen, previewPlaying ? animationTime : 0, centerLogoImage ?? undefined); context._context.restore(); }} /> : null}
       </Group>
       <MaskBorder screen={screen} selected={selected} />
       {selected ? <MaskEditorHandles screen={screen} /> : null}

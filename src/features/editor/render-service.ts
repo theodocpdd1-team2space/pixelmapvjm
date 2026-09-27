@@ -7,6 +7,7 @@ import type {
 } from "@/features/editor/types";
 import { drawStageCard, drawStageEffect, drawStageLabel, stageCardTypes, stageEffectTypes } from "./stage-visuals";
 import { getCabinetLayout, getPatternGrid, patternCells } from "./cabinet-layout";
+import { loadEditorImage } from "./image-assets";
 import { getStrobeAnimationState } from "@/features/editor/animation";
 import {
   adaptiveLabelSize,
@@ -41,19 +42,10 @@ function downloadBlob(blob: Blob, filename: string) {
   URL.revokeObjectURL(url);
 }
 
-function loadImage(src: string) {
-  return new Promise<HTMLImageElement>((resolve, reject) => {
-    const image = new Image();
-    image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error("Image failed to load."));
-    image.src = src;
-  });
-}
-
 async function buildImageCache(screens: EditorScreen[]) {
   const cache: ImageCache = new Map();
   const urls = new Set(screens.flatMap(screen => [screen.metadata.logoDataUrl, screen.pattern.centerMode === "logo" && screen.pattern.logoTemplate === "upload" ? screen.pattern.logoDataUrl : undefined]).filter((url): url is string => typeof url === "string" && url.length > 0));
-  await Promise.all([...urls].map(async url => { cache.set(url, await loadImage(url)); }));
+  await Promise.all([...urls].map(async url => { cache.set(url, await loadEditorImage(url)); }));
 
   return cache;
 }

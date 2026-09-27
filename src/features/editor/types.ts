@@ -86,6 +86,7 @@ export type ScreenPatternSettings = {
   logoShine: boolean;
   logoRotate: boolean;
   logoSpeed: number;
+  logoScale: number;
 
   type: StaticPatternType;
   mode: PatternMode;
@@ -136,6 +137,7 @@ export const defaultScreenPattern: ScreenPatternSettings = {
   logoShine: true,
   logoRotate: false,
   logoSpeed: 0.25,
+  logoScale: 1,
 
   accentColor: "#FFE600",
   badgeText: "E",

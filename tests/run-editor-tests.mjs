@@ -107,6 +107,87 @@ try {
   await page.evaluate(() => window.editorTests.recordSample());
   const file = await mp4; await file.saveAs(join(qaDir, 'sample.mp4'));
   assert((await readFile(join(qaDir, 'sample.mp4'))).length > 1000);
+  await page.evaluate(() => window.editorTests.loadLogoUploadPreview());
+  for (const color of ['#FF00FF', '#00FFFF']) {
+    if (color === '#00FFFF') await page.evaluate(() => window.editorTests.state().togglePreview());
+    const base64 = await page.evaluate(color => {
+      const c = document.createElement('canvas'); c.width = 240; c.height = 80;
+      const ctx = c.getContext('2d'); ctx.fillStyle = color; ctx.fillRect(0, 0, 240, 80);
+      return c.toDataURL().split(',')[1];
+    }, color);
+    await page.getByLabel('Upload Center Logo', { exact: true }).setInputFiles({ name: 'test-logo.png', mimeType: 'image/png', buffer: Buffer.from(base64, 'base64') });
+    await page.waitForFunction(color => {
+      const c = document.querySelector('.konvajs-content canvas'), ratio = c.width / parseFloat(c.style.width);
+      const pixel = c.getContext('2d').getImageData(240 * ratio, 190 * ratio, 1, 1).data;
+      return pixel[0] === parseInt(color.slice(1, 3), 16) && pixel[1] === parseInt(color.slice(3, 5), 16) && pixel[2] === parseInt(color.slice(5, 7), 16);
+    }, color, { timeout: 5000 });
+    assert(await page.evaluate(() => {
+      const src = window.editorTests.state().screens[0].pattern.logoDataUrl;
+      return window.editorTests.getEditorImage(src)?.naturalWidth > 0;
+    }), 'uploaded image is decoded before it is published to the canvas');
+  }
+  await page.evaluate(() => window.editorTests.state().togglePreview());
+  const logoSize = page.getByRole('slider', { name: 'Logo Size', exact: true });
+  await logoSize.fill('150'); await logoSize.blur();
+  assert.equal(await page.evaluate(() => window.editorTests.state().screens[0].pattern.logoScale), 1.5);
+  await page.waitForFunction(() => {
+    const c = document.querySelector('.konvajs-content canvas'), ratio = c.width / parseFloat(c.style.width);
+    const p = c.getContext('2d').getImageData(340 * ratio, 190 * ratio, 1, 1).data;
+    return p[0] === 0 && p[1] === 255 && p[2] === 255;
+  });
+  assert(await page.evaluate(async () => {
+    const s = window.editorTests.state();
+    const frame = await window.editorTests.renderEditorFrame(s.canvas, s.screens);
+    const p = frame.getContext('2d').getImageData(340, 190, 1, 1).data;
+    return p[0] === 0 && p[1] === 255 && p[2] === 255;
+  }), 'export uses the same logo size as live preview');
+  await page.evaluate(() => window.editorTests.state().undo());
+  await page.waitForFunction(() => window.editorTests.state().screens[0].pattern.logoScale === 1);
+  const sizeField = page.getByText('Logo Size %', { exact: true }).locator('..').locator('input');
+  await sizeField.fill('50'); await sizeField.blur();
+  assert.equal(await page.evaluate(() => window.editorTests.state().screens[0].pattern.logoScale), 0.5);
+  await page.waitForFunction(() => {
+    const c = document.querySelector('.konvajs-content canvas'), ratio = c.width / parseFloat(c.style.width);
+    const p = c.getContext('2d').getImageData(300 * ratio, 190 * ratio, 1, 1).data;
+    return p[1] < 100;
+  });
+  // Delay the first upload's decode, then choose another file before it finishes.
+  const raceFiles = await page.evaluate(() => {
+    const nativeDecode = HTMLImageElement.prototype.decode;
+    window.originalImageDecode = nativeDecode;
+    let first = true;
+    HTMLImageElement.prototype.decode = function () {
+      const decoded = nativeDecode.call(this);
+      if (this.src.startsWith('blob:') && first) {
+        first = false;
+        window.firstDecodeStarted = true;
+        return decoded.then(() => new Promise(resolve => { window.releaseFirstDecode = resolve; }));
+      }
+      return decoded;
+    };
+    return ['#FFFF00', '#00FF00'].map(color => {
+      const c = document.createElement('canvas'); c.width = 240; c.height = 80;
+      const ctx = c.getContext('2d'); ctx.fillStyle = color; ctx.fillRect(0, 0, 240, 80);
+      return c.toDataURL().split(',')[1];
+    });
+  });
+  const logoInput = page.getByLabel('Upload Center Logo', { exact: true });
+  await logoInput.setInputFiles({ name: 'slow.png', mimeType: 'image/png', buffer: Buffer.from(raceFiles[0], 'base64') });
+  await page.waitForFunction(() => window.firstDecodeStarted);
+  await logoInput.setInputFiles({ name: 'latest.png', mimeType: 'image/png', buffer: Buffer.from(raceFiles[1], 'base64') });
+  await page.getByRole('status').filter({ hasText: 'latest.png siap.' }).waitFor();
+  const latestUrl = await page.evaluate(() => window.editorTests.state().screens[0].pattern.logoDataUrl);
+  await page.evaluate(async () => {
+    window.releaseFirstDecode();
+    HTMLImageElement.prototype.decode = window.originalImageDecode;
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  });
+  assert.equal(await page.evaluate(() => window.editorTests.state().screens[0].pattern.logoDataUrl), latestUrl, 'late old upload cannot replace the newest file');
+  await page.waitForFunction(() => {
+    const c = document.querySelector('.konvajs-content canvas'), ratio = c.width / parseFloat(c.style.width);
+    const p = c.getContext('2d').getImageData(240 * ratio, 190 * ratio, 1, 1).data;
+    return p[0] === 0 && p[1] === 255 && p[2] === 0;
+  });
   assert.deepEqual(errors, []);
   console.log('PASS: parser, schema persistence, sync/undo, render, React controls, XML download, file-link auto sync, MP4 recording');
 } finally { await browser?.close(); server.close(); }
