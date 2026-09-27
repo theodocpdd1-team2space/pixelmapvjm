@@ -29,7 +29,7 @@ export function CenterLogoControls({ screen }: { screen: EditorScreen }) {
       output.width = Math.max(1, Math.round(image.naturalWidth * ratio)); output.height = Math.max(1, Math.round(image.naturalHeight * ratio));
       output.getContext("2d")!.drawImage(image, 0, 0, output.width, output.height);
       if (useEditorStore.getState().pageId !== pageId) return;
-      update({ logoDataUrl: output.toDataURL("image/png"), logoTemplate: "upload", centerMode: "logo", showScreenIndex: true });
+      update({ logoDataUrl: output.toDataURL("image/png"), logoTemplate: "upload", centerMode: "logo" });
       setStatus(`${file.name} siap. PNG transparan memberi hasil extrude terbaik.`);
     } catch { setStatus("Logo tidak dapat dibaca. Coba file gambar lain."); }
     finally { URL.revokeObjectURL(url); }
@@ -37,8 +37,20 @@ export function CenterLogoControls({ screen }: { screen: EditorScreen }) {
 
   return <div className="space-y-3 border border-pf-border bg-black/20 p-3">
     <p className="font-mono text-xs uppercase text-pf-red">Center • Screen / Logo</p>
+    <Button
+      type="button"
+      role="switch"
+      aria-label="Show Number / Logo"
+      aria-checked={p.showScreenIndex}
+      className="w-full justify-between"
+      onClick={() => update({ showScreenIndex: !p.showScreenIndex })}
+    >
+      <span>Show Number / Logo</span>
+      <span className={p.showScreenIndex ? "text-pf-red" : "text-pf-muted"}>{p.showScreenIndex ? "ON" : "OFF"}</span>
+    </Button>
+    <p className="text-xs leading-5 text-pf-muted">ON menampilkan angka atau logo tengah. OFF menyembunyikannya. Nama screen diatur lewat Name; untuk menyembunyikan resolusi, matikan Res dan Size.</p>
     <label className="block space-y-1"><span className="technical-label">Center Mode</span>
-      <select className="technical-input" value={p.centerMode} onChange={e => update({ centerMode: e.target.value as ScreenPatternSettings["centerMode"], showScreenIndex: true, ...(e.target.value === "screen" ? { badgeText: String(screen.zIndex + 1) } : {}) })}>
+      <select className="technical-input" value={p.centerMode} onChange={e => update({ centerMode: e.target.value as ScreenPatternSettings["centerMode"], ...(e.target.value === "screen" ? { badgeText: String(screen.zIndex + 1) } : {}) })}>
         <option value="screen">Screen number</option><option value="logo">Logo</option>
       </select>
     </label>
@@ -59,7 +71,7 @@ export function CenterLogoControls({ screen }: { screen: EditorScreen }) {
       <p className="text-xs leading-5 text-pf-muted">Logo berada di depan overlay; nama screen tetap kecil di bawah. Extrude memakai tampilan kedalaman 2.5D. Kilau dan rotasi mengikuti Logo Speed.</p>
       <Button className="w-full" onClick={() => {
         const store = useEditorStore.getState(); store.beginTransform();
-        store.screens.filter(s => s.type !== "logo").forEach(s => store.updateScreen(s.id, { pattern: { ...defaultScreenPattern, ...s.pattern, centerMode: "logo", showScreenIndex: true, logoTemplate: p.logoTemplate, logoDataUrl: p.logoDataUrl, logoText: p.logoText, logoColor: p.logoColor, logoExtrude: p.logoExtrude, logoDepth: p.logoDepth, logoShine: p.logoShine, logoRotate: p.logoRotate, logoSpeed: p.logoSpeed } }));
+        store.screens.filter(s => s.type !== "logo").forEach(s => store.updateScreen(s.id, { pattern: { ...defaultScreenPattern, ...s.pattern, centerMode: "logo", showScreenIndex: p.showScreenIndex, logoTemplate: p.logoTemplate, logoDataUrl: p.logoDataUrl, logoText: p.logoText, logoColor: p.logoColor, logoExtrude: p.logoExtrude, logoDepth: p.logoDepth, logoShine: p.logoShine, logoRotate: p.logoRotate, logoSpeed: p.logoSpeed } }));
         store.commitTransform();
       }}>APPLY LOGO TO ALL</Button>
     </>}

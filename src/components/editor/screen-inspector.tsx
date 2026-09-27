@@ -598,7 +598,6 @@ export function ScreenInspector() {
               ["Crosshair", "showCenterCrosshair"],
               ["Size", "showSize"],
               ["Position", "showPosition"],
-              ["Center Badge", "showScreenIndex"],
               ["Logo", "showLogo"]
             ].map(([label, key]) => (
               <label key={key} className="flex items-center gap-2 border border-pf-border bg-black/30 p-2">
